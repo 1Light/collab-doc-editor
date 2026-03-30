@@ -1,0 +1,31 @@
+{
+  "name": "collab-editor-monorepo",
+  "private": true,
+  "packageManager": "pnpm@10.32.1",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "pnpm -r --parallel dev",
+    "build": "pnpm -r build",
+    "start": "pnpm -r start",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "db:up": "docker compose -f infra/docker/docker-compose.yml up -d",
+    "db:down": "docker compose -f infra/docker/docker-compose.yml down",
+    "db:reset": "docker compose -f infra/docker/docker-compose.yml down -v && docker compose -f infra/docker/docker-compose.yml up -d",
+    "prisma:generate": "pnpm -C apps/api prisma:generate",
+    "prisma:migrate": "pnpm -C apps/api prisma:migrate",
+    "prisma:deploy": "pnpm -C apps/api prisma:deploy",
+    "prisma:seed": "pnpm -C apps/api prisma:seed",
+    "test:unit": "pnpm -r test:unit",
+    "test:integration": "pnpm -r test:integration",
+    "test:e2e": "playwright test",
+    "test:all": "pnpm test:unit && pnpm test:integration && pnpm test:e2e"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.2",
+    "dotenv-cli": "^11.0.0"
+  }
+}

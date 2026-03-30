@@ -1,0 +1,31 @@
+# dependencies
+node_modules
+.pnpm-store
+
+# builds
+dist
+build
+coverage
+*.tsbuildinfo
+
+# env
+.env
+.env.local
+.env.*.local
+
+# logs
+logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# OS
+.DS_Store
+
+# prisma
+prisma/dev.db
+prisma/dev.db-journal
+
+# exports / generated files
+apps/api/exports/*
+!apps/api/exports/.gitkeep
