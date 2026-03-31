@@ -1,0 +1,359 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+generator erd {
+  provider = "prisma-erd-generator"
+  output   = "./ERD.svg"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ========================= Enums =========================
+
+enum DocumentRole {
+  Viewer
+  Commenter
+  Editor
+  Owner
+}
+
+enum OrgRole {
+  OrgOwner
+  OrgAdmin
+}
+
+enum CommentStatus {
+  open
+  resolved
+}
+
+enum AIJobStatus {
+  queued
+  running
+  succeeded
+  failed
+}
+
+enum AIOperation {
+  rewrite
+  summarize
+  translate
+  reformat
+}
+
+enum InviteStatus {
+  pending
+  accepted
+  revoked
+  expired
+}
+
+// ========================= Organization =========================
+
+model Organization {
+  id        String   @id @default(uuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members   OrganizationMember[]
+  documents Document[]
+  invites   OrganizationInvite[]
+
+  @@index([createdAt])
+}
+
+// ========================= Organization Membership =========================
+
+model OrganizationMember {
+  id        String   @id @default(uuid())
+  orgId     String
+  userId    String
+  orgRole   OrgRole?
+  createdAt DateTime @default(now())
+
+  org  Organization @relation(fields: [orgId], references: [id])
+  user User         @relation(fields: [userId], references: [id])
+
+  @@unique([orgId, userId])
+  @@index([orgId])
+  @@index([userId])
+  @@index([createdAt])
+  @@index([orgId, orgRole])
+}
+
+model OrganizationInvite {
+  id          String       @id @default(uuid())
+  orgId       String
+  email       String
+  tokenHash   String       @unique
+  invitedById String
+  orgRole     OrgRole?
+  status      InviteStatus @default(pending)
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  createdAt   DateTime     @default(now())
+
+  org       Organization @relation(fields: [orgId], references: [id])
+  invitedBy User         @relation("OrgInvitesSent", fields: [invitedById], references: [id])
+
+  @@index([orgId])
+  @@index([email])
+  @@index([status])
+  @@index([expiresAt])
+  @@index([orgId, status])
+  @@index([orgId, email])
+}
+
+// ========================= User =========================
+
+model User {
+  id        String   @id @default(uuid())
+  name      String
+  email     String   @unique
+  password  String
+  isDeleted Boolean  @default(false)
+  deletedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberships                OrganizationMember[]
+  documentsOwned             Document[] @relation("DocumentOwner")
+  comments                   Comment[] @relation("UserComments")
+  aiJobs                     AIJob[] @relation("UserAIJobs")
+  auditLogs                  AuditLog[] @relation("UserAuditLogs")
+  documentVersions           DocumentVersion[] @relation("UserVersions")
+  aiJobApplications          AIJobApplication[] @relation("UserApplications")
+  orgInvitesSent             OrganizationInvite[] @relation("OrgInvitesSent")
+  documentInvitesSent        DocumentInvite[] @relation("DocumentInvitesSent")
+  documentPermissionsGranted DocumentPermission[] @relation("DocumentPermissionGrantedBy")
+
+  presences Presence[]
+
+  @@index([isDeleted])
+  @@index([deletedAt])
+  @@index([isDeleted, createdAt])
+}
+
+// ========================= Document =========================
+
+model Document {
+  id            String   @id @default(uuid())
+  orgId         String
+  title         String
+  content       String
+  ownerId       String
+  headVersionId String?
+  isDeleted     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  org   Organization @relation(fields: [orgId], references: [id])
+  owner User         @relation("DocumentOwner", fields: [ownerId], references: [id])
+
+  versions    DocumentVersion[]
+  permissions DocumentPermission[]
+  comments    Comment[]
+  aiJobs      AIJob[]
+  auditLogs   AuditLog[]
+  invites     DocumentInvite[]
+
+  presences Presence[]
+
+  @@index([orgId])
+  @@index([ownerId])
+  @@index([isDeleted])
+}
+
+// ========================= Version =========================
+
+model DocumentVersion {
+  id              String   @id @default(uuid())
+  documentId      String
+  parentVersionId String?
+  content         String
+  authorId        String
+  reason          String?
+  createdAt       DateTime @default(now())
+
+  document Document @relation(fields: [documentId], references: [id])
+  author   User     @relation("UserVersions", fields: [authorId], references: [id])
+
+  @@index([documentId])
+  @@index([parentVersionId])
+  @@index([authorId])
+  @@index([createdAt])
+}
+
+// ========================= Document Permissions =========================
+
+model DocumentPermission {
+  id            String       @id @default(uuid())
+  documentId    String
+  principalType String
+  principalId   String
+  role          DocumentRole
+  grantedById   String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @default(now()) @updatedAt
+
+  document  Document @relation(fields: [documentId], references: [id])
+  grantedBy User?    @relation("DocumentPermissionGrantedBy", fields: [grantedById], references: [id])
+
+  @@unique([documentId, principalType, principalId])
+  @@index([documentId])
+  @@index([principalType, principalId])
+  @@index([createdAt])
+  @@index([updatedAt])
+  @@index([grantedById])
+}
+
+// ========================= Document Invites =========================
+
+model DocumentInvite {
+  id          String       @id @default(uuid())
+  documentId  String
+  orgId       String
+  email       String
+  role        DocumentRole
+  tokenHash   String       @unique
+  invitedById String
+  status      InviteStatus @default(pending)
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  document  Document @relation(fields: [documentId], references: [id])
+  invitedBy User     @relation("DocumentInvitesSent", fields: [invitedById], references: [id])
+
+  @@unique([documentId, email])
+  @@index([documentId])
+  @@index([orgId])
+  @@index([email])
+  @@index([status])
+  @@index([expiresAt])
+}
+
+// ========================= Comments =========================
+
+model Comment {
+  id              String        @id @default(uuid())
+  documentId      String
+  authorId        String
+  parentCommentId String?
+  body            String
+  anchorStart     Int?
+  anchorEnd       Int?
+  quote           String?
+  status          CommentStatus @default(open)
+  resolvedBy      String?
+  resolvedAt      DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  document Document @relation(fields: [documentId], references: [id])
+  author   User     @relation("UserComments", fields: [authorId], references: [id])
+
+  parent  Comment?  @relation("CommentReplies", fields: [parentCommentId], references: [id], onDelete: Cascade)
+  replies Comment[] @relation("CommentReplies")
+
+  @@index([documentId])
+  @@index([authorId])
+  @@index([parentCommentId])
+  @@index([documentId, parentCommentId])
+  @@index([documentId, createdAt])
+  @@index([createdAt])
+}
+
+// ========================= AI Job =========================
+
+model AIJob {
+  id               String       @id @default(uuid())
+  documentId       String
+  userId           String
+  operation        AIOperation
+  selectionStart   Int
+  selectionEnd     Int
+  parameters       Json?
+  basedOnVersionId String?
+  status           AIJobStatus  @default(queued)
+  result           String?
+  errorMessage     String?
+  createdAt        DateTime     @default(now())
+
+  document     Document @relation(fields: [documentId], references: [id])
+  user         User     @relation("UserAIJobs", fields: [userId], references: [id])
+  applications AIJobApplication[]
+
+  @@index([documentId])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+// ========================= AI Job Application =========================
+
+model AIJobApplication {
+  id           String   @id @default(uuid())
+  aiJobId      String
+  appliedById  String
+  finalText    String?
+  newVersionId String?
+  createdAt    DateTime @default(now())
+
+  aiJob     AIJob @relation(fields: [aiJobId], references: [id])
+  appliedBy User  @relation("UserApplications", fields: [appliedById], references: [id])
+
+  @@index([aiJobId])
+  @@index([appliedById])
+  @@index([createdAt])
+}
+
+// ========================= Presence =========================
+
+model Presence {
+  id         String   @id @default(uuid())
+  userId     String
+  docId      String
+  socketId   String?
+  isOnline   Boolean  @default(true)
+  lastSeenAt DateTime @default(now()) @updatedAt
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  user     User     @relation(fields: [userId], references: [id])
+  document Document @relation(fields: [docId], references: [id])
+
+  @@unique([userId, docId])
+  @@index([docId])
+  @@index([userId])
+  @@index([docId, isOnline])
+}
+
+// ========================= Audit Log =========================
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  orgId      String?
+  userId     String
+  actionType String
+  documentId String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  user     User      @relation("UserAuditLogs", fields: [userId], references: [id])
+  document Document? @relation(fields: [documentId], references: [id])
+
+  @@index([orgId])
+  @@index([userId])
+  @@index([documentId])
+  @@index([createdAt])
+  @@index([orgId, createdAt])
+  @@index([orgId, actionType, createdAt])
+  @@index([orgId, userId, createdAt])
+  @@index([orgId, documentId, createdAt])
+}
