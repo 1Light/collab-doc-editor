@@ -1,0 +1,62 @@
+{
+  "name": "@repo/api",
+  "version": "0.1.0",
+  "private": true,
+  "main": "dist/server.js",
+  "scripts": {
+    "dev": "dotenv -e .env -- ts-node-dev --respawn --transpile-only --ignore-watch ../../packages/contracts/dist src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "echo \"(optional) add eslint later\"",
+    "test": "vitest --config tests/setup/vitest.config.ts run",
+    "test:unit": "vitest --config tests/setup/vitest.config.ts run tests/unit",
+    "test:integration": "vitest --config tests/setup/vitest.config.ts run tests/integration",
+    "test:watch": "vitest --config tests/setup/vitest.config.ts",
+    "prisma:generate": "dotenv -e .env -- prisma generate --schema=./prisma/schema.prisma",
+    "prisma:migrate": "dotenv -e .env -- prisma migrate dev --schema=./prisma/schema.prisma",
+    "prisma:deploy": "dotenv -e .env -- prisma migrate deploy --schema=./prisma/schema.prisma",
+    "prisma:seed": "dotenv -e .env -- ts-node prisma/seed.ts"
+  },
+  "prisma": {
+    "seed": "dotenv -e .env -- ts-node prisma/seed.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.22.0",
+    "@repo/contracts": "workspace:*",
+    "@turbodocx/html-to-docx": "^1.8.0",
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.6",
+    "docx": "^9.6.1",
+    "express": "^4.22.1",
+    "helmet": "^8.1.0",
+    "html-pdf-node": "^1.0.8",
+    "jsonwebtoken": "^9.0.3",
+    "morgan": "^1.10.1",
+    "node-cron": "^4.2.1",
+    "nodemailer": "^8.0.2",
+    "puppeteer": "^24.39.1",
+    "resend": "^6.9.3",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^4.17.25",
+    "@types/html-pdf-node": "^1.0.2",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/morgan": "^1.9.10",
+    "@types/node": "^22.19.15",
+    "@types/node-cron": "^3.0.11",
+    "@types/nodemailer": "^7.0.11",
+    "@types/supertest": "^7.2.0",
+    "dotenv-cli": "^11.0.0",
+    "prisma": "^5.22.0",
+    "prisma-erd-generator": "^2.4.2",
+    "supertest": "^7.0.0",
+    "ts-node": "^10.9.2",
+    "ts-node-dev": "^2.0.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "vitest": "^2.0.5"
+  }
+}
