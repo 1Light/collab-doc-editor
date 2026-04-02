@@ -7,6 +7,7 @@ This repository contains a monorepo implementation of a real-time collaborative 
 ## Project Structure
 
 ```
+
 apps/
 api/         Core backend API
 ai-service/  AI job execution service
@@ -18,7 +19,8 @@ contracts/   Shared schemas, DTOs, and types
 
 e2e/
 tests/       End-to-end tests (Playwright)
-```
+
+````
 
 ---
 
@@ -37,13 +39,13 @@ Run from the repository root:
 
 ```bash
 pnpm install
-```
+````
 
 ---
 
 ## Environment Configuration
 
-Each service uses environment variables.
+Each service requires its own `.env` file.
 
 All required variables are defined in the `.env.example` file inside each application directory.
 
@@ -56,32 +58,69 @@ cp apps/realtime/.env.example apps/realtime/.env
 cp apps/web/.env.example apps/web/.env
 ```
 
+---
+
 ### API (`apps/api/.env`)
 
 ```env
-DATABASE_URL=postgresql://collab:collab@localhost:5432/collabdb?schema=public
-SHADOW_DATABASE_URL=postgresql://collab:collab@localhost:5432/collabdb_shadow?schema=public
-JWT_SECRET=your-secret-key
+DATABASE_URL=your_database_url
+SHADOW_DATABASE_URL=your_shadow_database_url
+JWT_SECRET=your_jwt_secret
+API_PORT=4000
+
 WEB_ORIGIN=http://localhost:5173
+WEB_APP_URL=http://localhost:5173
+
+AI_SERVICE_URL=http://localhost:4002
+REALTIME_INTERNAL_URL=http://localhost:4001
+REALTIME_INTERNAL_SECRET=your_internal_secret
+
+EMAIL_PROVIDER=gmail
+GMAIL_USER=your_email
+GMAIL_APP_PASSWORD=your_app_password
+EMAIL_FROM=your_email
 ```
+
+---
 
 ### AI Service (`apps/ai-service/.env`)
 
 ```env
-LLM_PROVIDER=mock
+PORT=4002
+
+LLM_PROVIDER=lmstudio
+LLM_BASE_URL=http://127.0.0.1:1234
+LLM_MODEL=your_model
+LLM_API_KEY=
 ```
+
+---
 
 ### Realtime (`apps/realtime/.env`)
 
 ```env
-PORT=4001
+REALTIME_PORT=4001
+
+JWT_SECRET=your_jwt_secret
+API_BASE_URL=http://localhost:4000
+
+REALTIME_INTERNAL_SECRET=your_internal_secret
 ```
+
+---
 
 ### Web (`apps/web/.env`)
 
 ```env
-VITE_API_URL=http://localhost:4000
+VITE_API_BASE_URL=http://localhost:4000/api
+VITE_REALTIME_BASE_URL=http://localhost:4001
+
+WEB_PORT=5173
 ```
+
+---
+
+> ℹ️ Use the same `JWT_SECRET` and `REALTIME_INTERNAL_SECRET` across services.
 
 ---
 
@@ -145,26 +184,13 @@ The project supports unit, integration, and end-to-end testing.
 Run within a specific app:
 
 ```bash
-cd apps/api
-pnpm test:unit
+cd apps/api && pnpm test:unit
+cd apps/web && pnpm test:unit
+cd apps/ai-service && pnpm test:unit
+cd apps/realtime && pnpm test:unit
 ```
 
-```bash
-cd apps/web
-pnpm test:unit
-```
-
-```bash
-cd apps/ai-service
-pnpm test:unit
-```
-
-```bash
-cd apps/realtime
-pnpm test:unit
-```
-
-Run all unit tests (from root):
+Run all unit tests:
 
 ```bash
 pnpm test:unit
@@ -177,16 +203,11 @@ pnpm test:unit
 Run within a specific app:
 
 ```bash
-cd apps/api
-pnpm test:integration
+cd apps/api && pnpm test:integration
+cd apps/web && pnpm test:integration
 ```
 
-```bash
-cd apps/web
-pnpm test:integration
-```
-
-Run all integration tests (from root):
+Run all integration tests:
 
 ```bash
 pnpm test:integration
@@ -276,3 +297,7 @@ pnpm test:all
 ## License
 
 This project is for academic purposes only.
+
+```
+
+---
