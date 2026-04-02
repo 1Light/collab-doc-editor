@@ -58,8 +58,6 @@ cp apps/realtime/.env.example apps/realtime/.env
 cp apps/web/.env.example apps/web/.env
 ```
 
-> ⚠️ Never commit real `.env` files. Use `.env.example` as a template.
-
 ---
 
 ### API (`apps/api/.env`)
@@ -86,6 +84,23 @@ EMAIL_FROM=your_email
 
 ---
 
+### Email Configuration (Gmail)
+
+We use Gmail as a simple and free email provider for this MVP.
+
+To configure email sending:
+
+1. Enable **2-Step Verification** on your Google account
+2. Go to: [https://myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords)
+3. Generate a new **App Password** (select "Mail")
+4. Use this value as `GMAIL_APP_PASSWORD` in your `.env`
+
+> Do NOT use your regular Gmail password. Use an App Password instead.
+
+> Email configuration is optional. If not set, email-related features may not work.
+
+---
+
 ### AI Service (`apps/ai-service/.env`)
 
 ```env
@@ -94,7 +109,6 @@ PORT=4002
 LLM_PROVIDER=lmstudio
 LLM_BASE_URL=http://127.0.0.1:1234
 LLM_MODEL=your_model
-LLM_API_KEY=
 ```
 
 ---
@@ -188,13 +202,26 @@ The project supports unit, integration, and end-to-end testing.
 Run within a specific app:
 
 ```bash
-cd apps/api && pnpm test:unit
-cd apps/web && pnpm test:unit
-cd apps/ai-service && pnpm test:unit
-cd apps/realtime && pnpm test:unit
+cd apps/api
+pnpm test:unit
 ```
 
-Run all unit tests:
+```bash
+cd apps/web
+pnpm test:unit
+```
+
+```bash
+cd apps/ai-service
+pnpm test:unit
+```
+
+```bash
+cd apps/realtime
+pnpm test:unit
+```
+
+Run all unit tests (from root):
 
 ```bash
 pnpm test:unit
@@ -207,11 +234,16 @@ pnpm test:unit
 Run within a specific app:
 
 ```bash
-cd apps/api && pnpm test:integration
-cd apps/web && pnpm test:integration
+cd apps/api
+pnpm test:integration
 ```
 
-Run all integration tests:
+```bash
+cd apps/web
+pnpm test:integration
+```
+
+Run all integration tests (from root):
 
 ```bash
 pnpm test:integration
