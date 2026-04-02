@@ -26,10 +26,10 @@ tests/       End-to-end tests (Playwright)
 
 ## Prerequisites
 
-* Node.js
-* pnpm
-* Docker (for running PostgreSQL)
-* Playwright browsers
+* Node.js  
+* pnpm  
+* Docker (for running PostgreSQL)  
+* Playwright browsers  
 
 ---
 
@@ -58,13 +58,16 @@ cp apps/realtime/.env.example apps/realtime/.env
 cp apps/web/.env.example apps/web/.env
 ```
 
+> ⚠️ Never commit real `.env` files. Use `.env.example` as a template.
+
 ---
 
 ### API (`apps/api/.env`)
 
 ```env
-DATABASE_URL=your_database_url
-SHADOW_DATABASE_URL=your_shadow_database_url
+DATABASE_URL=postgresql://collab:collab@localhost:5432/collabdb?schema=public
+SHADOW_DATABASE_URL=postgresql://collab:collab@localhost:5432/collabdb_shadow?schema=public
+
 JWT_SECRET=your_jwt_secret
 API_PORT=4000
 
@@ -120,7 +123,7 @@ WEB_PORT=5173
 
 ---
 
-> ℹ️ Use the same `JWT_SECRET` and `REALTIME_INTERNAL_SECRET` across services.
+> ℹ️ The `JWT_SECRET` and `REALTIME_INTERNAL_SECRET` must be the same across services to ensure proper authentication and internal communication.
 
 ---
 
@@ -137,6 +140,7 @@ docker-compose up -d
 ```
 
 Ensure port `5432` is not already in use on your machine.
+If it is, update your Docker configuration (e.g., `5433:5432`) and adjust your `DATABASE_URL` accordingly.
 
 ---
 
@@ -299,5 +303,3 @@ pnpm test:all
 This project is for academic purposes only.
 
 ```
-
----
