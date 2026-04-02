@@ -333,5 +333,3 @@ pnpm test:all
 ## License
 
 This project is for academic purposes only.
-
-```
