@@ -1,0 +1,152 @@
+@import "tailwindcss";
+
+/* TipTap CollaborationCursor: never block text selection */
+.collaboration-cursor__caret,
+.collaboration-cursor__label,
+.collaboration-cursor__selection {
+  pointer-events: none !important;
+}
+
+/* --- Collaboration caret / label / selection styling --- */
+
+.collaboration-cursor__caret {
+  position: relative;
+  margin-left: -1px;
+  margin-right: -1px;
+  border-left-width: 2px;
+  border-left-style: solid;
+  border-right: none;
+  display: inline-block;
+  height: 1em;
+  vertical-align: text-top;
+  z-index: 20;
+}
+
+.collaboration-cursor__label {
+  position: absolute;
+  top: -1.45em;
+  left: -1px;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  border-radius: 6px;
+  padding: 3px 6px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
+  user-select: none;
+  z-index: 30;
+}
+
+.collaboration-cursor__selection {
+  display: inline;
+  border-radius: 2px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  opacity: 0.22;
+}
+
+/* --- ProseMirror selection styling --- */
+
+.ProseMirror ::selection {
+  background: rgba(59, 130, 246, 0.25);
+}
+
+.ProseMirror ::-moz-selection {
+  background: rgba(59, 130, 246, 0.25);
+}
+
+.ProseMirror .ProseMirror-selectednode {
+  outline: 2px solid rgba(59, 130, 246, 0.35);
+}
+
+/* --- Editor document styling --- */
+
+.ProseMirror {
+  outline: none;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.ProseMirror > *:first-child {
+  margin-top: 0;
+}
+
+.ProseMirror > *:last-child {
+  margin-bottom: 0;
+}
+
+.ProseMirror p {
+  margin: 0.65rem 0;
+  font-size: 1rem;
+  line-height: 1.75;
+  color: #111827;
+}
+
+.ProseMirror h1 {
+  margin: 1.5rem 0 0.75rem;
+  font-size: 2rem;
+  line-height: 1.15;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #111827;
+}
+
+.ProseMirror h2 {
+  margin: 1.25rem 0 0.65rem;
+  font-size: 1.5rem;
+  line-height: 1.2;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  color: #111827;
+}
+
+.ProseMirror h3 {
+  margin: 1rem 0 0.55rem;
+  font-size: 1.25rem;
+  line-height: 1.3;
+  font-weight: 600;
+  color: #111827;
+}
+
+.ProseMirror ul,
+.ProseMirror ol {
+  margin: 0.75rem 0;
+  padding-left: 1.5rem;
+  color: #111827;
+}
+
+.ProseMirror ul {
+  list-style: disc;
+}
+
+.ProseMirror ol {
+  list-style: decimal;
+}
+
+.ProseMirror li {
+  margin: 0.25rem 0;
+}
+
+.ProseMirror li p {
+  margin: 0.2rem 0;
+}
+
+.ProseMirror blockquote {
+  margin: 1rem 0;
+  border-left: 3px solid #d1d5db;
+  padding-left: 1rem;
+  color: #4b5563;
+}
+
+.ProseMirror a {
+  color: #1d4ed8;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.ProseMirror hr {
+  margin: 1.25rem 0;
+  border: 0;
+  border-top: 1px solid #e5e7eb;
+}
