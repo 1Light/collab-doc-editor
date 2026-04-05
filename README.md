@@ -141,32 +141,48 @@ WEB_PORT=5173
 
 ---
 
-## Quick Start
+## Database Setup (IMPORTANT)
 
-### 1. Setup database (API)
+### 0. Install & Start Docker
 
-#### Start PostgreSQL (Docker - recommended)
-
-From the repository root:
-
-```bash
-docker-compose up -d
-```
-
-Ensure port `5432` is not already in use on your machine.
-If it is, update your Docker configuration (e.g., `5433:5432`) and adjust your `DATABASE_URL` accordingly.
+* Install Docker Desktop: [https://www.docker.com/products/docker-desktop](https://www.docker.com/products/docker-desktop)
+* Open Docker Desktop and make sure it is running
 
 ---
 
-#### Create shadow database (required for Prisma migrations)
+### 1. Start PostgreSQL with Docker
+
+From the repository root, run:
 
 ```bash
-docker exec -it collab_postgres psql -U collab -c "CREATE DATABASE collabdb_shadow;"
+docker compose -f infra/docker/docker-compose.yml up -d
 ```
 
 ---
 
-#### Run migrations
+###
+
+```bash
+docker ps
+```
+
+You should see a container named:
+
+```
+collab_postgres
+```
+
+---
+
+### 2. Create shadow database (required)
+
+```bash
+docker exec -it collab_postgres psql -U collab -d postgres -c "CREATE DATABASE collabdb_shadow;"
+```
+
+---
+
+### 3. Run Prisma setup
 
 ```bash
 cd apps/api
@@ -183,12 +199,20 @@ pnpm prisma:seed
 
 ---
 
-### 2. Start all services (from root)
+## Running the System
+
+From repo root:
 
 ```bash
 pnpm dev
 ```
 
+Services:
+
+* API: [http://localhost:4000](http://localhost:4000)
+* Realtime: [http://localhost:4001](http://localhost:4001)
+* AI Service: [http://localhost:4002](http://localhost:4002)
+* Web: [http://localhost:5173](http://localhost:5173)
 ---
 
 ## Testing
