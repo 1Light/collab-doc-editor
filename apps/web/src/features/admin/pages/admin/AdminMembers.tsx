@@ -327,48 +327,56 @@ export function AdminMembers({
   return (
     <div className="space-y-5">
       <Card className="overflow-hidden">
-        <div className="border-b border-gray-200 bg-white px-5 py-4 sm:px-6">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div className="min-w-0">
-              <div className="text-sm font-semibold text-gray-900">Members</div>
-              <div className="mt-1 text-sm text-gray-600">
-                Organization membership and admin privileges. Document access is separate.
-              </div>
-            </div>
+<div className="border-b border-slate-200 bg-white px-6 py-5">
+  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
 
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="neutral">{users.length} total</Badge>
-              <Badge variant="neutral">{orgOwnerCount} org owner</Badge>
-              <Badge variant="neutral">{orgAdminCount} org admins</Badge>
-              <Badge variant="neutral">{pendingInvites.length} pending invites</Badge>
-              <Button variant="primary" size="sm" onClick={() => setInviteModalOpen(true)}>
-                Invite member
-              </Button>
-            </div>
-          </div>
+    {/* LEFT: title */}
+    <div>
+      <div className="text-lg font-semibold text-slate-950">Members</div>
+      <div className="mt-1 text-sm text-slate-600">
+        Manage organization membership and admin privileges.
+      </div>
+    </div>
 
-          {uiError && (
-            <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-              {uiError}
-            </div>
-          )}
+    {/* RIGHT: actions */}
+    <div className="flex items-center gap-3">
+      <div className="hidden sm:flex items-center gap-2 text-xs text-slate-500">
+        <span>{users.length} users</span>
+        <span>•</span>
+        <span>{orgAdminCount} admins</span>
+        <span>•</span>
+        <span>{pendingInvites.length} pending</span>
+      </div>
 
-          <div className="mt-4 flex flex-col gap-3 px-0 pb-1 sm:flex-row sm:items-center sm:gap-2">
-            <div className="flex-1">
-              <Input
-                value={memberQuery}
-                onChange={(e) => setMemberQuery(e.target.value)}
-                placeholder="Search name or email"
-              />
-            </div>
+      <Button variant="primary" size="sm" onClick={() => setInviteModalOpen(true)}>
+        Invite
+      </Button>
+    </div>
+  </div>
 
-            <div className="flex items-center gap-2">
-              <RoleChip active={roleFilter === "all"} label="All" onClick={() => setRoleFilter("all")} />
-              <RoleChip active={roleFilter === "admins"} label="Admins" onClick={() => setRoleFilter("admins")} />
-              <RoleChip active={roleFilter === "members"} label="Members" onClick={() => setRoleFilter("members")} />
-            </div>
-          </div>
-        </div>
+  {uiError && (
+    <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+      {uiError}
+    </div>
+  )}
+
+  {/* SEARCH + FILTER */}
+  <div className="mt-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+    <div className="flex-1 max-w-md">
+      <Input
+        value={memberQuery}
+        onChange={(e) => setMemberQuery(e.target.value)}
+        placeholder="Search users..."
+      />
+    </div>
+
+    <div className="flex items-center gap-2">
+      <RoleChip active={roleFilter === "all"} label="All" onClick={() => setRoleFilter("all")} />
+      <RoleChip active={roleFilter === "admins"} label="Admins" onClick={() => setRoleFilter("admins")} />
+      <RoleChip active={roleFilter === "members"} label="Members" onClick={() => setRoleFilter("members")} />
+    </div>
+  </div>
+</div>
 
         <div className="relative">
           <div className="hidden grid-cols-12 gap-3 border-b border-gray-200 bg-gray-50 px-5 py-3 text-xs font-semibold text-gray-700 sm:grid sm:px-6">
