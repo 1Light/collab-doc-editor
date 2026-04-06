@@ -1,6 +1,6 @@
 // apps/web/src/pages/Admin.tsx
 
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   createOrgInvite,
   getAIPolicy,
@@ -16,7 +16,6 @@ import {
 } from "../../../features/admin/api";
 
 import { Card } from "../../../components/ui/Card";
-import { Badge } from "../../../components/ui/Badge";
 
 import { AdminOverview } from "./admin/AdminOverview";
 import { AdminAIPolicy } from "./admin/AdminAIPolicy";
@@ -107,75 +106,69 @@ export function AdminPage({ onBack: _onBack }: Props) {
   }
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
-      <div className="mb-5">
-        <div className="min-w-0">
-          <h1 className="truncate text-lg font-semibold text-gray-900">Admin console</h1>
-          <div className="mt-1 text-sm text-gray-600">
-            Manage membership, AI policy, and audit activity.
-          </div>
-        </div>
-      </div>
-
+    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
       {error && (
-        <div className="mb-5 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-          <div className="font-medium text-red-900">Something went wrong</div>
+        <div className="mb-6 rounded-3xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-800 shadow-sm">
+          <div className="font-semibold text-red-900">Something went wrong</div>
           <div className="mt-1">{error}</div>
         </div>
       )}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
         <div className="lg:col-span-3">
-          <Card className="overflow-hidden">
-            <div className="border-b border-gray-200 bg-white px-5 py-4">
-              <div className="text-sm font-semibold text-gray-900">Navigation</div>
-              <div className="mt-1 text-xs text-gray-600">Pick an admin area.</div>
+          <Card className="overflow-hidden rounded-[28px] border border-slate-200/80 bg-white shadow-sm shadow-slate-200/60">
+            <div className="border-b border-slate-200 bg-white px-5 py-5">
+              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                Navigation
+              </div>
+              <div className="mt-2 text-lg font-semibold tracking-tight text-slate-950">
+                Admin areas
+              </div>
+              <div className="mt-1 text-sm text-slate-600">
+                Move between core workspace controls.
+              </div>
             </div>
 
-            <div className="p-2">
-              <AdminNavItem
-                label="Overview"
-                active={section === "overview"}
-                onClick={() => setSection("overview")}
-                right={<Badge variant="neutral">{users.length} users</Badge>}
-              />
-              <AdminNavItem
-                label="AI policy"
-                active={section === "ai"}
-                onClick={() => setSection("ai")}
-                right={<Badge variant="neutral">{policy?.enabledRoles?.length ?? 0} roles</Badge>}
-              />
-              <AdminNavItem
-                label="Members"
-                active={section === "members"}
-                onClick={() => setSection("members")}
-                right={<Badge variant="neutral">{orgAdminCount} admins</Badge>}
-              />
-              <AdminNavItem
-                label="Audit logs"
-                active={section === "logs"}
-                onClick={() => setSection("logs")}
-                right={<Badge variant="neutral">Search</Badge>}
-              />
+            <div className="p-3">
+              <div className="space-y-2">
+                <AdminNavItem
+                  label="Overview"
+                  description="Health, activity, and shortcuts"
+                  active={section === "overview"}
+                  onClick={() => setSection("overview")}
+                />
+                <AdminNavItem
+                  label="AI policy"
+                  description="Roles, quotas, and controls"
+                  active={section === "ai"}
+                  onClick={() => setSection("ai")}
+                />
+                <AdminNavItem
+                  label="Members"
+                  description="Users, invites, and admin access"
+                  active={section === "members"}
+                  onClick={() => setSection("members")}
+                />
+                <AdminNavItem
+                  label="Audit logs"
+                  description="Search and review activity"
+                  active={section === "logs"}
+                  onClick={() => setSection("logs")}
+                />
+              </div>
             </div>
           </Card>
-
-          <div className="mt-4 grid grid-cols-2 gap-3">
-            <Card className="p-4">
-              <div className="text-xs text-gray-600">Org admins</div>
-              <div className="mt-1 text-lg font-semibold text-gray-900">{orgAdminCount}</div>
-            </Card>
-            <Card className="p-4">
-              <div className="text-xs text-gray-600">Users</div>
-              <div className="mt-1 text-lg font-semibold text-gray-900">{users.length}</div>
-            </Card>
-          </div>
         </div>
 
         <div className="lg:col-span-9">
-          {section === "overview" && (
-            <AdminOverview policy={policy} users={users} onNavigate={setSection} />
-          )}
+{section === "overview" && (
+  <AdminOverview
+    policy={policy}
+    users={users}
+    orgAdminCount={orgAdminCount}
+    onNavigate={setSection}
+  />
+)}
 
           {section === "ai" && <AdminAIPolicy policy={policy} onSave={savePolicy} />}
 
@@ -200,27 +193,35 @@ export function AdminPage({ onBack: _onBack }: Props) {
 
 function AdminNavItem({
   label,
+  description,
   active,
   onClick,
-  right,
 }: {
   label: string;
+  description?: string;
   active: boolean;
   onClick: () => void;
-  right?: React.ReactNode;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
       className={cx(
-        "flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left transition-colors",
-        active ? "bg-gray-900 text-white" : "text-gray-800 hover:bg-gray-100"
+        "flex w-full items-start gap-3 rounded-2xl border px-4 py-3 text-left transition-all duration-150",
+        active
+          ? "border-slate-900 bg-slate-950 text-white shadow-sm shadow-slate-950/10"
+          : "border-transparent bg-white text-slate-800 hover:border-slate-200 hover:bg-slate-50"
       )}
       aria-pressed={active}
     >
-      <span className="text-sm font-medium">{label}</span>
-      {right}
+      <div className="min-w-0">
+        <div className="text-sm font-semibold tracking-tight">{label}</div>
+        {description ? (
+          <div className={cx("mt-1 text-xs", active ? "text-slate-300" : "text-slate-500")}>
+            {description}
+          </div>
+        ) : null}
+      </div>
     </button>
   );
 }

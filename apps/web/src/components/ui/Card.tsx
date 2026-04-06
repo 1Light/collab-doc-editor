@@ -12,7 +12,15 @@ export function Card({ className, ...props }: Props) {
   return (
     <div
       className={cx(
-        "rounded-2xl border border-gray-200 bg-white shadow-sm",
+        // base
+        "rounded-3xl border bg-white",
+
+        // softer, more modern border + depth
+        "border-slate-200/80 shadow-sm shadow-slate-200/60",
+
+        // subtle hover polish (no functional change)
+        "transition-shadow hover:shadow-md",
+
         className
       )}
       {...props}
