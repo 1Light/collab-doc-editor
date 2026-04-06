@@ -1,13 +1,24 @@
 @import "tailwindcss";
 
-/* TipTap CollaborationCursor: never block text selection */
+/* ---------------------------
+   Global base polish
+---------------------------- */
+
+html,
+body {
+  background-color: #f8fafc; /* softer than pure white */
+  color: #0f172a;
+}
+
+/* ---------------------------
+   Collaboration cursor
+---------------------------- */
+
 .collaboration-cursor__caret,
 .collaboration-cursor__label,
 .collaboration-cursor__selection {
   pointer-events: none !important;
 }
-
-/* --- Collaboration caret / label / selection styling --- */
 
 .collaboration-cursor__caret {
   position: relative;
@@ -15,7 +26,6 @@
   margin-right: -1px;
   border-left-width: 2px;
   border-left-style: solid;
-  border-right: none;
   display: inline-block;
   height: 1em;
   vertical-align: text-top;
@@ -27,40 +37,45 @@
   top: -1.45em;
   left: -1px;
   color: #ffffff;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   line-height: 1;
   white-space: nowrap;
-  border-radius: 6px;
-  padding: 3px 6px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
+  border-radius: 8px;
+  padding: 3px 7px;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
   user-select: none;
   z-index: 30;
 }
 
 .collaboration-cursor__selection {
   display: inline;
-  border-radius: 2px;
+  border-radius: 4px;
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
-  opacity: 0.22;
+  opacity: 0.18;
 }
 
-/* --- ProseMirror selection styling --- */
+/* ---------------------------
+   Selection styling
+---------------------------- */
 
 .ProseMirror ::selection {
-  background: rgba(59, 130, 246, 0.25);
+  background: rgba(59, 130, 246, 0.18);
 }
 
 .ProseMirror ::-moz-selection {
-  background: rgba(59, 130, 246, 0.25);
+  background: rgba(59, 130, 246, 0.18);
 }
 
 .ProseMirror .ProseMirror-selectednode {
-  outline: 2px solid rgba(59, 130, 246, 0.35);
+  outline: 2px solid rgba(59, 130, 246, 0.28);
+  border-radius: 6px;
 }
 
-/* --- Editor document styling --- */
+/* ---------------------------
+   Editor base
+---------------------------- */
 
 .ProseMirror {
   outline: none;
@@ -76,44 +91,52 @@
   margin-bottom: 0;
 }
 
+/* ---------------------------
+   Typography (clean + modern)
+---------------------------- */
+
 .ProseMirror p {
-  margin: 0.65rem 0;
+  margin: 0.75rem 0;
   font-size: 1rem;
-  line-height: 1.75;
-  color: #111827;
+  line-height: 1.8;
+  color: #0f172a;
 }
 
 .ProseMirror h1 {
-  margin: 1.5rem 0 0.75rem;
-  font-size: 2rem;
+  margin: 1.75rem 0 0.85rem;
+  font-size: 2.1rem;
   line-height: 1.15;
   font-weight: 700;
-  letter-spacing: -0.02em;
-  color: #111827;
+  letter-spacing: -0.025em;
+  color: #020617;
 }
 
 .ProseMirror h2 {
-  margin: 1.25rem 0 0.65rem;
-  font-size: 1.5rem;
+  margin: 1.4rem 0 0.7rem;
+  font-size: 1.6rem;
   line-height: 1.2;
   font-weight: 700;
-  letter-spacing: -0.015em;
-  color: #111827;
+  letter-spacing: -0.02em;
+  color: #020617;
 }
 
 .ProseMirror h3 {
-  margin: 1rem 0 0.55rem;
+  margin: 1.1rem 0 0.6rem;
   font-size: 1.25rem;
-  line-height: 1.3;
+  line-height: 1.35;
   font-weight: 600;
-  color: #111827;
+  color: #020617;
 }
+
+/* ---------------------------
+   Lists
+---------------------------- */
 
 .ProseMirror ul,
 .ProseMirror ol {
-  margin: 0.75rem 0;
-  padding-left: 1.5rem;
-  color: #111827;
+  margin: 0.85rem 0;
+  padding-left: 1.6rem;
+  color: #0f172a;
 }
 
 .ProseMirror ul {
@@ -125,28 +148,60 @@
 }
 
 .ProseMirror li {
-  margin: 0.25rem 0;
+  margin: 0.3rem 0;
 }
 
 .ProseMirror li p {
-  margin: 0.2rem 0;
+  margin: 0.25rem 0;
 }
+
+/* ---------------------------
+   Blockquote
+---------------------------- */
 
 .ProseMirror blockquote {
-  margin: 1rem 0;
-  border-left: 3px solid #d1d5db;
+  margin: 1.2rem 0;
+  border-left: 3px solid #e2e8f0;
   padding-left: 1rem;
-  color: #4b5563;
+  color: #475569;
+  background: #f8fafc;
+  border-radius: 6px;
 }
+
+/* ---------------------------
+   Links
+---------------------------- */
 
 .ProseMirror a {
-  color: #1d4ed8;
+  color: #2563eb;
   text-decoration: underline;
-  text-underline-offset: 2px;
+  text-underline-offset: 3px;
 }
 
+/* ---------------------------
+   Divider
+---------------------------- */
+
 .ProseMirror hr {
-  margin: 1.25rem 0;
+  margin: 1.5rem 0;
   border: 0;
-  border-top: 1px solid #e5e7eb;
+  border-top: 1px solid #e2e8f0;
+}
+
+/* ---------------------------
+   Subtle scrollbar (nice touch)
+---------------------------- */
+
+::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.35);
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.5);
 }

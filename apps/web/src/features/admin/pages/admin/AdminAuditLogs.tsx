@@ -3,7 +3,6 @@ import { Button } from "../../../../components/ui/Button";
 import { Card } from "../../../../components/ui/Card";
 import { Input } from "../../../../components/ui/Input";
 import { Badge } from "../../../../components/ui/Badge";
-import { Collapsible } from "../../../../components/ui/Collapsible";
 import { connectSocket } from "../../../../features/realtime/socket";
 import {
   deleteAuditLog,
@@ -26,7 +25,10 @@ function formatAuditTime(value: string | number | Date) {
   const diffHr = Math.floor(diffMin / 60);
   const diffDay = Math.floor(diffHr / 24);
 
-  const time = d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+  const time = d.toLocaleTimeString(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 
   if (diffMin < 1) return "just now";
   if (diffMin < 60) return `${diffMin}m ago`;
@@ -40,7 +42,10 @@ function formatAuditTime(value: string | number | Date) {
 
   const sameYear = d.getFullYear() === now.getFullYear();
   if (sameYear) {
-    const md = d.toLocaleDateString(undefined, { month: "short", day: "2-digit" });
+    const md = d.toLocaleDateString(undefined, {
+      month: "short",
+      day: "2-digit",
+    });
     return `${md} · ${time}`;
   }
 
@@ -62,14 +67,6 @@ function formatExactAuditTime(value: string | number | Date) {
     minute: "2-digit",
     second: "2-digit",
   });
-}
-
-function safeJson(value: unknown) {
-  try {
-    return JSON.stringify(value, null, 2);
-  } catch {
-    return "Could not render metadata";
-  }
 }
 
 function cx(...parts: Array<string | false | null | undefined>) {
@@ -100,12 +97,22 @@ function normalizeLogV2(l: any): AuditLogV2 {
     actionType: String(l.actionType),
     documentId: l.documentId ?? undefined,
     metadata: l.metadata ?? undefined,
-    createdAt: typeof l.createdAt === "string" ? l.createdAt : new Date(l.createdAt).toISOString(),
+    createdAt:
+      typeof l.createdAt === "string"
+        ? l.createdAt
+        : new Date(l.createdAt).toISOString(),
     actor: l.actor
-      ? { id: String(l.actor.id), name: l.actor.name ?? undefined, email: l.actor.email ?? undefined }
+      ? {
+          id: String(l.actor.id),
+          name: l.actor.name ?? undefined,
+          email: l.actor.email ?? undefined,
+        }
       : undefined,
     document: l.document
-      ? { id: String(l.document.id), title: l.document.title ?? undefined }
+      ? {
+          id: String(l.document.id),
+          title: l.document.title ?? undefined,
+        }
       : undefined,
     summary: String(l.summary ?? l.actionType),
     riskLevel: (l.riskLevel ?? "low") as any,
@@ -129,16 +136,21 @@ function matchesFilters(
     ]
       .join(" ")
       .toLowerCase();
+
     if (!hay.includes(q)) return false;
   }
 
-  if (filters.actionTypes.length > 0 && !filters.actionTypes.includes(log.actionType)) return false;
+  if (filters.actionTypes.length > 0 && !filters.actionTypes.includes(log.actionType)) {
+    return false;
+  }
 
   const t = new Date(log.createdAt).getTime();
+
   if (filters.from) {
     const fromT = new Date(filters.from).getTime();
     if (!Number.isNaN(fromT) && t < fromT) return false;
   }
+
   if (filters.to) {
     const toT = new Date(filters.to).getTime();
     if (!Number.isNaN(toT) && t > toT) return false;
@@ -147,20 +159,6 @@ function matchesFilters(
   if (filters.riskOnly && log.riskLevel === "low") return false;
 
   return true;
-}
-
-function previewMetadata(meta: unknown) {
-  if (!meta) return "No metadata";
-  if (typeof meta === "string") return meta.slice(0, 80);
-  if (typeof meta === "number" || typeof meta === "boolean") return String(meta);
-  if (Array.isArray(meta)) return `Array(${meta.length})`;
-  if (typeof meta === "object") {
-    const keys = Object.keys(meta as Record<string, unknown>);
-    return keys.length
-      ? `Keys: ${keys.slice(0, 6).join(", ")}${keys.length > 6 ? "…" : ""}`
-      : "Object";
-  }
-  return "Metadata";
 }
 
 function startOfDayISO(yyyyMmDd: string) {
@@ -222,48 +220,26 @@ function getActorSecondary(log: AuditLogV2) {
 }
 
 function getTargetPrimary(log: AuditLogV2) {
-  return log.document?.title ?? "Document";
+  return log.document?.title ?? (log.documentId ? truncateMiddle(log.documentId, 8, 6) : "—");
 }
 
 function getTargetSecondary(log: AuditLogV2) {
   return log.documentId ? truncateMiddle(log.documentId, 8, 6) : null;
 }
 
-function summarizeMetadataLine(log: AuditLogV2) {
-  const meta = log.metadata as Record<string, unknown> | undefined;
-  if (!meta || typeof meta !== "object") return null;
-
-  if (log.actionType === "PERMISSION_GRANTED" || log.actionType === "PERMISSION_REVOKED") {
-    const role = typeof meta.role === "string" ? meta.role : null;
-    const principalType = typeof meta.principalType === "string" ? meta.principalType : null;
-    const principalId = typeof meta.principalId === "string" ? meta.principalId : null;
-
-    const pieces = [];
-    if (role) pieces.push(role);
-    if (principalType) pieces.push(principalType);
-    if (principalId) pieces.push(truncateMiddle(principalId, 8, 6));
-
-    return pieces.length ? pieces.join(" · ") : null;
-  }
-
-  if (log.actionType === "COMMENT_CREATED" || log.actionType === "COMMENT_RESOLVED") {
-    const commentId = typeof meta.commentId === "string" ? meta.commentId : null;
-    const parentCommentId = typeof meta.parentCommentId === "string" ? meta.parentCommentId : null;
-
-    const pieces = [];
-    if (commentId) pieces.push(`Comment ${truncateMiddle(commentId, 8, 6)}`);
-    if (parentCommentId) pieces.push(`Reply to ${truncateMiddle(parentCommentId, 8, 6)}`);
-
-    return pieces.length ? pieces.join(" · ") : null;
-  }
-
-  return null;
-}
-
 function getRiskBadgeVariant(risk: AuditLogV2["riskLevel"]) {
   if (risk === "high") return "warning" as const;
   if (risk === "medium") return "neutral" as const;
   return "neutral" as const;
+}
+
+function humanizeLabel(key: string) {
+  return key
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/_/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^./, (c) => c.toUpperCase());
 }
 
 function humanizeMetadata(
@@ -277,40 +253,74 @@ function humanizeMetadata(
 
   if (actionType === "PERMISSION_GRANTED" || actionType === "PERMISSION_REVOKED") {
     if (typeof meta.role === "string") rows.push({ label: "Role", value: meta.role });
-    if (typeof meta.principalType === "string") rows.push({ label: "Access type", value: meta.principalType });
+    if (typeof meta.principalType === "string") {
+      rows.push({ label: "Access type", value: meta.principalType });
+    }
     if (typeof meta.principalId === "string") {
       rows.push({ label: "Recipient", value: truncateMiddle(meta.principalId, 10, 8) });
     }
-    if (typeof meta.previousRole === "string") rows.push({ label: "Previous role", value: meta.previousRole });
+    if (typeof meta.previousRole === "string") {
+      rows.push({ label: "Previous role", value: meta.previousRole });
+    }
     return rows;
   }
 
   if (actionType === "COMMENT_CREATED" || actionType === "COMMENT_RESOLVED") {
     if (typeof meta.commentId === "string") {
-      rows.push({ label: "Comment", value: truncateMiddle(meta.commentId, 10, 8) });
+      rows.push({ label: "Comment ID", value: truncateMiddle(meta.commentId, 10, 8) });
     }
     if (typeof meta.parentCommentId === "string") {
-      rows.push({ label: "Parent comment", value: truncateMiddle(meta.parentCommentId, 10, 8) });
-    }
-    return rows;
-  }
-
-  if (actionType === "AI_JOB_APPLIED" || actionType === "AI_POLICY_UPDATED") {
-    for (const [k, v] of Object.entries(meta)) {
-      if (typeof v === "string" || typeof v === "number" || typeof v === "boolean") {
-        rows.push({ label: k, value: String(v) });
-      }
+      rows.push({
+        label: "Parent comment",
+        value: truncateMiddle(meta.parentCommentId, 10, 8),
+      });
     }
     return rows;
   }
 
   for (const [k, v] of Object.entries(meta)) {
     if (typeof v === "string" || typeof v === "number" || typeof v === "boolean") {
-      rows.push({ label: k, value: String(v) });
+      rows.push({ label: humanizeLabel(k), value: String(v) });
     }
   }
 
   return rows;
+}
+
+function getFriendlySummary(log: AuditLogV2) {
+  const actor = getActorPrimary(log);
+  const target = getTargetPrimary(log);
+
+  switch (log.actionType) {
+    case "DOCUMENT_CREATED":
+      return `${actor} created ${target}.`;
+    case "DOCUMENT_DELETED":
+      return `${actor} deleted ${target}.`;
+    case "PERMISSION_GRANTED":
+      return `${actor} granted access to ${target}.`;
+    case "PERMISSION_REVOKED":
+      return `${actor} revoked access to ${target}.`;
+    case "VERSION_REVERTED":
+      return `${actor} reverted ${target} to an earlier version.`;
+    case "COMMENT_CREATED":
+      return `${actor} added a comment on ${target}.`;
+    case "COMMENT_RESOLVED":
+      return `${actor} resolved a comment on ${target}.`;
+    case "USER_ORG_ROLE_UPDATED":
+      return `${actor} changed an organization role.`;
+    case "ORG_INVITE_SENT":
+      return `${actor} sent an organization invite.`;
+    case "LOGIN_SUCCESS":
+      return `${actor} signed in successfully.`;
+    case "LOGIN_FAILED":
+      return `A sign-in attempt failed for ${actor}.`;
+    case "AI_POLICY_UPDATED":
+      return `${actor} updated an AI policy.`;
+    case "AI_JOB_APPLIED":
+      return `${actor} applied an AI job action.`;
+    default:
+      return log.summary || formatActionTypeLabel(log.actionType);
+  }
 }
 
 function TimeChip({
@@ -328,7 +338,9 @@ function TimeChip({
       onClick={onClick}
       className={cx(
         "rounded-full px-3 py-1 text-xs font-semibold transition-colors",
-        active ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-800 hover:bg-gray-200"
+        active
+          ? "bg-slate-900 text-white shadow-sm"
+          : "bg-slate-100 text-slate-700 hover:bg-slate-200"
       )}
       aria-pressed={active}
     >
@@ -416,7 +428,7 @@ export function AdminAuditLogs() {
   useEffect(() => {
     setLogNextCursor(null);
     setLogHasMore(false);
-    loadLogs(true);
+    void loadLogs(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, logQ, from ?? "", to ?? "", logRiskOnly, logActionTypes.join(",")]);
 
@@ -441,6 +453,7 @@ export function AdminAuditLogs() {
     const onAuditLogCreated = (payload: any) => {
       const raw = payload?.log;
       if (!raw) return;
+
       const incoming = normalizeLogV2(raw);
 
       if (logActionTypes.length && !logActionTypes.includes(incoming.actionType)) return;
@@ -456,6 +469,7 @@ export function AdminAuditLogs() {
           loginSuccess: ["LOGIN_SUCCESS"],
           loginFailed: ["LOGIN_FAILED"],
         };
+
         const allowed = tabToTypes[activeTab] ?? [];
         if (allowed.length && !allowed.includes(incoming.actionType)) return;
       }
@@ -467,6 +481,7 @@ export function AdminAuditLogs() {
         to,
         riskOnly: logRiskOnly,
       });
+
       if (!ok) return;
 
       setLogs((prev) => {
@@ -495,7 +510,7 @@ export function AdminAuditLogs() {
           <div className="min-w-0">
             <div className="text-sm font-semibold text-gray-900">Audit logs</div>
             <div className="mt-1 text-sm text-gray-600">
-              Search refines the results. Export downloads what you see.
+              Search refines the results. Click a row to view full details.
             </div>
           </div>
 
@@ -505,67 +520,89 @@ export function AdminAuditLogs() {
               title={socketConnected ? "Live updates on" : "Live updates off"}
               aria-label={socketConnected ? "Live updates on" : "Live updates off"}
             >
-              <span className={cx("h-2 w-2 rounded-full", socketConnected ? "bg-green-600" : "bg-gray-300")} />
+              <span
+                className={cx(
+                  "h-2 w-2 rounded-full",
+                  socketConnected ? "bg-green-600" : "bg-gray-300"
+                )}
+              />
               <span>{socketConnected ? "Live" : "Updates off"}</span>
             </div>
           </div>
         </div>
 
-        <div className="mt-4 grid grid-cols-1 gap-3 px-0 pb-5 sm:grid-cols-12 sm:gap-3">
-          <div className="sm:col-span-6">
-            <Input
-              value={logQ}
-              onChange={(e) => setLogQ(e.target.value)}
-              placeholder="Search actor, doc, action, summary..."
-            />
+        <div className="mt-6 space-y-6">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="w-full max-w-lg">
+              <Input
+                value={logQ}
+                onChange={(e) => setLogQ(e.target.value)}
+                placeholder="Search logs..."
+              />
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <TimeChip
+                active={timePreset === "today"}
+                label="Today"
+                onClick={() => setTimePreset("today")}
+              />
+              <TimeChip
+                active={timePreset === "24h"}
+                label="24h"
+                onClick={() => setTimePreset("24h")}
+              />
+              <TimeChip
+                active={timePreset === "7d"}
+                label="7d"
+                onClick={() => setTimePreset("7d")}
+              />
+              <TimeChip
+                active={timePreset === "30d"}
+                label="30d"
+                onClick={() => setTimePreset("30d")}
+              />
+              <TimeChip
+                active={timePreset === "all"}
+                label="All"
+                onClick={() => setTimePreset("all")}
+              />
+              <TimeChip
+                active={timePreset === "custom"}
+                label="Custom"
+                onClick={() => setTimePreset("custom")}
+              />
+            </div>
           </div>
 
-          <div className="sm:col-span-6 flex flex-wrap items-center justify-start gap-2">
-            <TimeChip active={timePreset === "today"} label="Today" onClick={() => setTimePreset("today")} />
-            <TimeChip active={timePreset === "24h"} label="24h" onClick={() => setTimePreset("24h")} />
-            <TimeChip active={timePreset === "7d"} label="7d" onClick={() => setTimePreset("7d")} />
-            <TimeChip active={timePreset === "30d"} label="30d" onClick={() => setTimePreset("30d")} />
-            <TimeChip active={timePreset === "all"} label="All" onClick={() => setTimePreset("all")} />
-            <TimeChip active={timePreset === "custom"} label="Custom" onClick={() => setTimePreset("custom")} />
-          </div>
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <label className="flex items-center gap-2 text-sm font-medium text-slate-600">
+              <input
+                type="checkbox"
+                checked={logRiskOnly}
+                onChange={(e) => setLogRiskOnly(e.target.checked)}
+              />
+              High / medium only
+            </label>
 
-          {timePreset === "custom" && (
-            <>
-              <div className="sm:col-span-3">
+            {timePreset === "custom" && (
+              <div className="flex items-center gap-2">
                 <Input
                   value={customFrom}
                   onChange={(e) => setCustomFrom(e.target.value)}
-                  placeholder="From date"
                   type="date"
                 />
-              </div>
-              <div className="sm:col-span-3">
+                <span className="text-slate-400">→</span>
                 <Input
                   value={customTo}
                   onChange={(e) => setCustomTo(e.target.value)}
-                  placeholder="To date"
                   type="date"
                 />
               </div>
-              <div className="sm:col-span-6 flex items-center justify-between gap-2">
-                <label className="flex items-center gap-2 text-xs text-gray-700">
-                  <input type="checkbox" checked={logRiskOnly} onChange={(e) => setLogRiskOnly(e.target.checked)} />
-                  High/medium only
-                </label>
-              </div>
-            </>
-          )}
+            )}
+          </div>
 
-          {timePreset !== "custom" && (
-            <div className="sm:col-span-12 flex items-center justify-between gap-2">
-              <label className="flex items-center gap-2 text-xs text-gray-700">
-                <input type="checkbox" checked={logRiskOnly} onChange={(e) => setLogRiskOnly(e.target.checked)} />
-                High/medium only
-              </label>
-            </div>
-          )}
-
-          <div className="sm:col-span-12">
+          <div>
             <ActionTypePicker value={logActionTypes} onChange={setLogActionTypes} />
           </div>
         </div>
@@ -585,38 +622,56 @@ export function AdminAuditLogs() {
               <div className="col-span-1 text-right">Remove</div>
             </div>
 
-            <div className="max-h-[60vh] overflow-y-auto divide-y divide-gray-100 bg-white">
+            <div className="max-h-[60vh] divide-y divide-gray-100 overflow-y-auto bg-white">
               {logs.map((l: AuditLogV2) => {
                 const isRemoving = removingLogId === l.id;
+                const isSelected = logSelected?.id === l.id;
                 const actorPrimary = getActorPrimary(l);
                 const actorSecondary = getActorSecondary(l);
                 const targetPrimary = getTargetPrimary(l);
                 const targetSecondary = getTargetSecondary(l);
-                const metaLine = summarizeMetadataLine(l);
 
                 return (
                   <button
                     key={l.id}
                     type="button"
                     onClick={() => setLogSelected(l)}
-                    className="grid w-full grid-cols-12 gap-2 px-4 py-3 text-left transition-colors hover:bg-gray-50"
+                    className={cx(
+                      "grid w-full grid-cols-12 gap-2 px-4 py-3 text-left transition-colors",
+                      isSelected ? "bg-slate-50" : "hover:bg-gray-50"
+                    )}
                   >
-                    <div className="col-span-2 text-xs text-gray-700" title={formatExactAuditTime(l.createdAt)}>
+                    <div
+                      className="col-span-2 text-xs text-gray-700"
+                      title={formatExactAuditTime(l.createdAt)}
+                    >
                       {formatAuditTime(l.createdAt)}
                     </div>
 
                     <div className="col-span-3 min-w-0">
-                      <div className="truncate text-sm font-medium text-gray-900">{actorPrimary}</div>
-                      {actorSecondary && <div className="mt-0.5 truncate text-xs text-gray-500">{actorSecondary}</div>}
+                      <div className="truncate text-sm font-medium text-gray-900">
+                        {actorPrimary}
+                      </div>
+                      {actorSecondary && (
+                        <div className="mt-0.5 truncate text-xs text-gray-500">
+                          {actorSecondary}
+                        </div>
+                      )}
                     </div>
 
                     <div className="col-span-2 min-w-0">
-                      <div className="truncate text-sm text-gray-800">{formatActionTypeLabel(l.actionType)}</div>
+                      <div className="truncate text-sm text-gray-800">
+                        {formatActionTypeLabel(l.actionType)}
+                      </div>
                     </div>
 
                     <div className="col-span-3 min-w-0">
                       <div className="truncate text-sm text-gray-900">{targetPrimary}</div>
-                      {targetSecondary && <div className="mt-0.5 truncate text-xs text-gray-500">{targetSecondary}</div>}
+                      {targetSecondary && (
+                        <div className="mt-0.5 truncate text-xs text-gray-500">
+                          {targetSecondary}
+                        </div>
+                      )}
                     </div>
 
                     <div className="col-span-1">
@@ -637,11 +692,6 @@ export function AdminAuditLogs() {
                         {isRemoving ? "Removing..." : "Remove"}
                       </Button>
                     </div>
-
-                    <div className="col-span-12 mt-1">
-                      <div className="text-sm text-gray-700">{l.summary}</div>
-                      {metaLine && <div className="mt-1 text-xs text-gray-500">{metaLine}</div>}
-                    </div>
                   </button>
                 );
               })}
@@ -651,7 +701,7 @@ export function AdminAuditLogs() {
 
         {logHasMore && logNextCursor && (
           <div className="mt-4 flex justify-center">
-            <Button variant="secondary" onClick={() => loadLogs(false)}>
+            <Button variant="secondary" onClick={() => void loadLogs(false)}>
               Load more
             </Button>
           </div>
@@ -670,7 +720,13 @@ export function AdminAuditLogs() {
   );
 }
 
-function ActionTypePicker({ value, onChange }: { value: string[]; onChange: (v: string[]) => void }) {
+function ActionTypePicker({
+  value,
+  onChange,
+}: {
+  value: string[];
+  onChange: (v: string[]) => void;
+}) {
   const ALL = [
     "DOCUMENT_CREATED",
     "DOCUMENT_DELETED",
@@ -689,6 +745,7 @@ function ActionTypePicker({ value, onChange }: { value: string[]; onChange: (v: 
     <div className="flex flex-wrap gap-2">
       {ALL.map((t) => {
         const active = value.includes(t);
+
         return (
           <button
             key={t}
@@ -699,13 +756,16 @@ function ActionTypePicker({ value, onChange }: { value: string[]; onChange: (v: 
             }}
             className={cx(
               "rounded-full px-3 py-1 text-xs font-semibold transition-colors",
-              active ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-800 hover:bg-gray-200"
+              active
+                ? "bg-slate-900 text-white"
+                : "bg-slate-100 text-slate-700 hover:bg-slate-200"
             )}
           >
-            {t}
+            {formatActionTypeLabel(t)}
           </button>
         );
       })}
+
       {value.length > 0 && (
         <Button variant="secondary" size="sm" onClick={() => onChange([])}>
           Clear
@@ -715,39 +775,21 @@ function ActionTypePicker({ value, onChange }: { value: string[]; onChange: (v: 
   );
 }
 
-function DetailCard({
-  title,
-  primary,
-  secondary,
+function DetailRow({
+  label,
+  value,
 }: {
-  title: string;
-  primary: string;
-  secondary?: string | null;
+  label: string;
+  value: string;
 }) {
   return (
-    <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
-      <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">{title}</div>
-      <div className="mt-2 text-base font-medium text-gray-900">{primary}</div>
-      {secondary ? <div className="mt-1 text-sm text-gray-500">{secondary}</div> : null}
-    </div>
-  );
-}
-
-function MetadataSummaryGrid({
-  items,
-}: {
-  items: Array<{ label: string; value: string }>;
-}) {
-  if (items.length === 0) return null;
-
-  return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-      {items.map((item) => (
-        <div key={`${item.label}:${item.value}`} className="rounded-xl border border-gray-200 bg-gray-50 p-3">
-          <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">{item.label}</div>
-          <div className="mt-1 break-words text-sm text-gray-900">{item.value}</div>
-        </div>
-      ))}
+    <div className="flex items-start justify-between gap-4 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
+      <div className="shrink-0 text-xs font-semibold uppercase tracking-wide text-gray-500">
+        {label}
+      </div>
+      <div className="min-w-0 break-words text-right text-sm font-medium text-gray-900">
+        {value}
+      </div>
     </div>
   );
 }
@@ -764,19 +806,32 @@ function AuditDrawer({
   onClose: () => void;
 }) {
   const actorPrimary = getActorPrimary(log);
-  const actorSecondary = log.actor?.id
-    ? `ID: ${truncateMiddle(log.actor.id, 10, 8)}`
-    : `ID: ${truncateMiddle(log.userId, 10, 8)}`;
+  const actorIdValue = log.actor?.id
+    ? truncateMiddle(log.actor.id, 10, 8)
+    : truncateMiddle(log.userId, 10, 8);
 
   const targetPrimary = getTargetPrimary(log);
-  const targetSecondary = log.document?.id
-    ? `Document ID: ${truncateMiddle(log.document.id, 10, 8)}`
+  const documentIdValue = log.document?.id
+    ? truncateMiddle(log.document.id, 10, 8)
     : log.documentId
-      ? `Document ID: ${truncateMiddle(log.documentId, 10, 8)}`
+      ? truncateMiddle(log.documentId, 10, 8)
       : null;
 
   const metadataItems = humanizeMetadata(log.actionType, log.metadata);
-  const hasDetails = metadataItems.length > 0 || Boolean(log.metadata);
+  const friendlySummary = getFriendlySummary(log);
+
+  const detailRows: Array<{ label: string; value: string }> = [
+    { label: "Action", value: formatActionTypeLabel(log.actionType) },
+    { label: "When", value: formatExactAuditTime(log.createdAt) },
+    { label: "Risk", value: log.riskLevel },
+    { label: "Actor", value: actorPrimary },
+    { label: "Actor ID", value: actorIdValue },
+    { label: "Target", value: targetPrimary },
+  ];
+
+  if (documentIdValue) {
+    detailRows.push({ label: "Document ID", value: documentIdValue });
+  }
 
   return (
     <div className="fixed inset-0 z-30">
@@ -786,14 +841,16 @@ function AuditDrawer({
         onClick={onClose}
         aria-label="Close audit log details"
       />
-      <div className="absolute right-0 top-0 h-full w-full max-w-2xl overflow-y-auto bg-white shadow-2xl">
+
+      <div className="absolute right-0 top-0 h-full w-full max-w-xl overflow-y-auto bg-white shadow-2xl">
         <div className="sticky top-0 z-10 border-b border-gray-200 bg-white px-5 py-4">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
-              <div className="text-xl font-semibold text-gray-900">{formatActionTypeLabel(log.actionType)}</div>
-              <div className="mt-1 text-sm text-gray-600">{log.summary}</div>
-              <div className="mt-2 text-sm text-gray-500" title={new Date(log.createdAt).toISOString()}>
-                {formatAuditTime(log.createdAt)} · {formatExactAuditTime(log.createdAt)}
+              <div className="text-xl font-semibold text-gray-900">
+                {formatActionTypeLabel(log.actionType)}
+              </div>
+              <div className="mt-1 text-sm text-gray-600">
+                Review the event summary and key details.
               </div>
             </div>
 
@@ -808,41 +865,34 @@ function AuditDrawer({
           </div>
         </div>
 
-        <div className="space-y-5 px-5 py-5">
+        <div className="space-y-6 px-5 py-5">
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant={getRiskBadgeVariant(log.riskLevel)}>{log.riskLevel}</Badge>
             <Badge variant="neutral">{formatActionTypeLabel(log.actionType)}</Badge>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <DetailCard title="Actor" primary={actorPrimary} secondary={actorSecondary} />
-            <DetailCard title="Target" primary={targetPrimary} secondary={targetSecondary} />
+          <div className="rounded-2xl border border-gray-200 bg-slate-50 p-4">
+            <div className="text-sm font-semibold text-gray-900">Summary</div>
+            <div className="mt-2 text-sm leading-6 text-gray-700">{friendlySummary}</div>
           </div>
 
           <div className="rounded-2xl border border-gray-200 bg-white p-4">
-            <div className="text-sm font-semibold text-gray-900">What happened</div>
-            <div className="mt-2 text-sm leading-6 text-gray-700">{log.summary}</div>
+            <div className="text-sm font-semibold text-gray-900">Details</div>
+            <div className="mt-3 space-y-3">
+              {detailRows.map((item) => (
+                <DetailRow key={`${item.label}:${item.value}`} label={item.label} value={item.value} />
+              ))}
+            </div>
           </div>
 
-          {hasDetails && (
+          {metadataItems.length > 0 && (
             <div className="rounded-2xl border border-gray-200 bg-white p-4">
-              <div className="text-sm font-semibold text-gray-900">Details</div>
-
-              {metadataItems.length > 0 && (
-                <div className="mt-3">
-                  <MetadataSummaryGrid items={metadataItems} />
-                </div>
-              )}
-
-              {Boolean(log.metadata) && (
-                <div className="mt-4">
-                  <Collapsible title="Raw metadata JSON" preview={previewMetadata(log.metadata)}>
-                    <pre className="mt-3 overflow-auto rounded-xl border border-gray-200 bg-gray-50 p-3 text-xs text-gray-800">
-                      {safeJson(log.metadata)}
-                    </pre>
-                  </Collapsible>
-                </div>
-              )}
+              <div className="text-sm font-semibold text-gray-900">Additional details</div>
+              <div className="mt-3 space-y-3">
+                {metadataItems.map((item) => (
+                  <DetailRow key={`${item.label}:${item.value}`} label={item.label} value={item.value} />
+                ))}
+              </div>
             </div>
           )}
         </div>

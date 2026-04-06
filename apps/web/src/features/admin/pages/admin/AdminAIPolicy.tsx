@@ -5,7 +5,6 @@ import type { AIPolicy } from "../../../../features/admin/api";
 import { Button } from "../../../../components/ui/Button";
 import { Card } from "../../../../components/ui/Card";
 import { Input } from "../../../../components/ui/Input";
-import { Badge } from "../../../../components/ui/Badge";
 import { Checkbox } from "../../../../components/ui/Checkbox";
 
 function toNum(v: string): number | undefined {
@@ -73,32 +72,43 @@ export function AdminAIPolicy({
   }
 
   return (
-    <Card className="overflow-hidden">
-      <div className="border-b border-gray-200 bg-white px-5 py-4 sm:px-6">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <div className="text-sm font-semibold text-gray-900">AI policy</div>
-            <div className="mt-1 text-sm text-gray-600">
-              Configure which roles can use AI and set daily quotas.
-            </div>
+    <Card className="overflow-hidden rounded-[28px] border border-slate-200/80 bg-white shadow-sm">
+      
+      {/* HEADER */}
+      <div className="border-b border-slate-200 bg-gradient-to-r from-slate-50 via-white to-white px-6 py-5 sm:px-7">
+        <div>
+          <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+            AI policy
           </div>
-          <div className="flex items-center gap-2">
-            <Badge variant="neutral">Roles: {policy?.enabledRoles?.length ?? enabledRoles.length}</Badge>
+          <div className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">
+            Configure AI access
+          </div>
+          <div className="mt-2 text-sm text-slate-600">
+            Choose which roles can use AI and define daily usage limits.
           </div>
         </div>
       </div>
 
-      <div className="p-5 sm:p-6">
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
-            <div className="text-xs font-semibold text-gray-900">Enabled roles</div>
-            <div className="mt-3 space-y-2">
+      {/* BODY */}
+      <div className="p-6 sm:p-7 space-y-6">
+
+        {/* ROLES */}
+        <div className="rounded-3xl border border-slate-200 bg-slate-50/70 p-5">
+          <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+            Enabled roles
+          </div>
+
+          <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="rounded-2xl border border-slate-200 bg-white p-4">
               <Checkbox
                 checked={enabledEditor}
                 onChange={setEnabledEditor}
                 label="Editor"
                 description="Can request suggestions and summaries."
               />
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-4">
               <Checkbox
                 checked={enabledOwner}
                 onChange={setEnabledOwner}
@@ -106,65 +116,70 @@ export function AdminAIPolicy({
                 description="Can request suggestions and manage settings."
               />
             </div>
-            <div className="mt-3 text-xs text-gray-600">
-              Current:{" "}
-              <span className="font-medium text-gray-900">
-                {policy?.enabledRoles.join(", ") ?? "-"}
-              </span>
-            </div>
           </div>
 
-          <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
-            <div className="text-xs font-semibold text-gray-900">Daily quotas</div>
-
-            <div className="mt-3 grid grid-cols-1 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-gray-700">Per user per day</label>
-                <div className="mt-2">
-                  <Input
-                    value={perUserPerDay}
-                    onChange={(e) => setPerUserPerDay(e.target.value)}
-                    placeholder="Example: 50"
-                    inputMode="numeric"
-                  />
-                </div>
-                <div className="mt-1 text-xs text-gray-500">Limits usage for each individual user.</div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-700">Per org per day</label>
-                <div className="mt-2">
-                  <Input
-                    value={perOrgPerDay}
-                    onChange={(e) => setPerOrgPerDay(e.target.value)}
-                    placeholder="Example: 500"
-                    inputMode="numeric"
-                  />
-                </div>
-                <div className="mt-1 text-xs text-gray-500">Caps total org-wide usage.</div>
-              </div>
-            </div>
-
-            <div className="mt-3 text-xs text-gray-600">
-              Updated:{" "}
-              <span className="font-medium text-gray-900">
-                {policy?.updatedAt ? formatDateTime(policy.updatedAt) : "-"}
-              </span>
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
-            <div className="text-xs font-semibold text-gray-900">Actions</div>
-            <div className="mt-3 space-y-2">
-              <Button variant="primary" onClick={save} disabled={savingPolicy} className="w-full">
-                {savingPolicy ? "Saving..." : "Save policy"}
-              </Button>
-            </div>
-            <div className="mt-3 text-xs text-gray-500">
-              Enabled roles must be a subset of Editor and Owner.
-            </div>
+          <div className="mt-5 text-sm text-slate-600">
+            Current:{" "}
+            <span className="font-semibold text-slate-900">
+              {policy?.enabledRoles.join(", ") ?? "-"}
+            </span>
           </div>
         </div>
+
+        {/* QUOTAS */}
+        <div className="rounded-3xl border border-slate-200 bg-slate-50/70 p-5">
+          <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+            Daily quotas
+          </div>
+
+          <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="rounded-2xl border border-slate-200 bg-white p-4">
+              <label className="text-xs font-medium text-slate-500">
+                Per user per day
+              </label>
+              <div className="mt-2">
+                <Input
+                  value={perUserPerDay}
+                  onChange={(e) => setPerUserPerDay(e.target.value)}
+                  inputMode="numeric"
+                />
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-4">
+              <label className="text-xs font-medium text-slate-500">
+                Per org per day
+              </label>
+              <div className="mt-2">
+                <Input
+                  value={perOrgPerDay}
+                  onChange={(e) => setPerOrgPerDay(e.target.value)}
+                  inputMode="numeric"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-5 text-xs text-slate-500">
+            Updated:{" "}
+            <span className="font-medium text-slate-900">
+              {policy?.updatedAt ? formatDateTime(policy.updatedAt) : "-"}
+            </span>
+          </div>
+        </div>
+
+        {/* SAVE BUTTON */}
+        <div className="flex justify-end">
+          <Button
+            variant="primary"
+            onClick={save}
+            disabled={savingPolicy}
+            className="px-6"
+          >
+            {savingPolicy ? "Saving..." : "Save policy"}
+          </Button>
+        </div>
+
       </div>
     </Card>
   );
