@@ -41,6 +41,16 @@ Run from the repository root:
 pnpm install
 ````
 
+### Build Shared Contracts (IMPORTANT)
+
+The `contracts` package must be built before running the system or tests:
+
+```bash
+pnpm --filter @repo/contracts build
+```
+
+> This generates the compiled output used by other services (API, AI service, etc.).
+
 ---
 
 ## Environment Configuration
