@@ -7,6 +7,7 @@ This repository contains a monorepo implementation of a real-time collaborative 
 ## Project Structure
 
 ```
+
 apps/
 api/         Core backend API
 ai-service/  AI job execution service
@@ -18,16 +19,17 @@ contracts/   Shared schemas, DTOs, and types
 
 e2e/
 tests/       End-to-end tests (Playwright)
-```
+
+````
 
 ---
 
 ## Prerequisites
 
-* Node.js
-* pnpm
-* Docker (for running PostgreSQL)
-* Playwright browsers
+* Node.js  
+* pnpm  
+* Docker (for running PostgreSQL)  
+* Playwright browsers  
 
 ---
 
@@ -37,13 +39,23 @@ Run from the repository root:
 
 ```bash
 pnpm install
+````
+
+### Build Shared Contracts (IMPORTANT)
+
+The `contracts` package must be built before running the system or tests:
+
+```bash
+pnpm --filter @repo/contracts build
 ```
+
+> This generates the compiled output used by other services (API, AI service, etc.).
 
 ---
 
 ## Environment Configuration
 
-Each service uses environment variables.
+Each service requires its own `.env` file.
 
 All required variables are defined in the `.env.example` file inside each application directory.
 
@@ -56,60 +68,131 @@ cp apps/realtime/.env.example apps/realtime/.env
 cp apps/web/.env.example apps/web/.env
 ```
 
+---
+
 ### API (`apps/api/.env`)
 
 ```env
 DATABASE_URL=postgresql://collab:collab@localhost:5432/collabdb?schema=public
 SHADOW_DATABASE_URL=postgresql://collab:collab@localhost:5432/collabdb_shadow?schema=public
-JWT_SECRET=your-secret-key
+
+JWT_SECRET=your_jwt_secret
+API_PORT=4000
+
 WEB_ORIGIN=http://localhost:5173
+WEB_APP_URL=http://localhost:5173
+
+AI_SERVICE_URL=http://localhost:4002
+REALTIME_INTERNAL_URL=http://localhost:4001
+REALTIME_INTERNAL_SECRET=your_internal_secret
+
+EMAIL_PROVIDER=gmail
+GMAIL_USER=your_email
+GMAIL_APP_PASSWORD=your_app_password
+EMAIL_FROM=your_email
 ```
+
+---
+
+### Email Configuration (Gmail)
+
+We use Gmail as a simple and free email provider for this MVP.
+
+To configure email sending:
+
+1. Enable **2-Step Verification** on your Google account
+2. Go to: [https://myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords)
+3. Generate a new **App Password** (select "Mail")
+4. Use this value as `GMAIL_APP_PASSWORD` in your `.env`
+
+> Do NOT use your regular Gmail password. Use an App Password instead.
+
+> Email configuration is optional. If not set, email-related features may not work.
+
+---
 
 ### AI Service (`apps/ai-service/.env`)
 
 ```env
-LLM_PROVIDER=mock
+PORT=4002
+
+LLM_PROVIDER=lmstudio
+LLM_BASE_URL=http://127.0.0.1:1234
+LLM_MODEL=your_model
 ```
+
+---
 
 ### Realtime (`apps/realtime/.env`)
 
 ```env
-PORT=4001
+REALTIME_PORT=4001
+
+JWT_SECRET=your_jwt_secret
+API_BASE_URL=http://localhost:4000
+
+REALTIME_INTERNAL_SECRET=your_internal_secret
 ```
+
+---
 
 ### Web (`apps/web/.env`)
 
 ```env
-VITE_API_URL=http://localhost:4000
+VITE_API_BASE_URL=http://localhost:4000/api
+VITE_REALTIME_BASE_URL=http://localhost:4001
+
+WEB_PORT=5173
 ```
 
 ---
 
-## Quick Start
+> ℹ️ The `JWT_SECRET` and `REALTIME_INTERNAL_SECRET` must be the same across services to ensure proper authentication and internal communication.
 
-### 1. Setup database (API)
+---
 
-#### Start PostgreSQL (Docker - recommended)
+## Database Setup (IMPORTANT)
 
-From the repository root:
+### 0. Install & Start Docker
+
+* Install Docker Desktop: [https://www.docker.com/products/docker-desktop](https://www.docker.com/products/docker-desktop)
+* Open Docker Desktop and make sure it is running
+
+---
+
+### 1. Start PostgreSQL with Docker
+
+From the repository root, run:
 
 ```bash
-docker-compose up -d
+docker compose -f infra/docker/docker-compose.yml up -d
 ```
-
-Ensure port `5432` is not already in use on your machine.
 
 ---
 
-#### Create shadow database (required for Prisma migrations)
+###
 
 ```bash
-docker exec -it collab_postgres psql -U collab -c "CREATE DATABASE collabdb_shadow;"
+docker ps
+```
+
+You should see a container named:
+
+```
+collab_postgres
 ```
 
 ---
 
-#### Run migrations
+### 2. Create shadow database (required)
+
+```bash
+docker exec -it collab_postgres psql -U collab -d postgres -c "CREATE DATABASE collabdb_shadow;"
+```
+
+---
+
+### 3. Run Prisma setup
 
 ```bash
 cd apps/api
@@ -126,12 +209,20 @@ pnpm prisma:seed
 
 ---
 
-### 2. Start all services (from root)
+## Running the System
+
+From repo root:
 
 ```bash
 pnpm dev
 ```
 
+Services:
+
+* API: [http://localhost:4000](http://localhost:4000)
+* Realtime: [http://localhost:4001](http://localhost:4001)
+* AI Service: [http://localhost:4002](http://localhost:4002)
+* Web: [http://localhost:5173](http://localhost:5173)
 ---
 
 ## Testing
