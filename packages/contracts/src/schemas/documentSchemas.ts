@@ -13,7 +13,7 @@ export const documentRoleSchema = z.enum([
   "Owner",
 ]);
 
-export type DocumentRole = z.infer<typeof documentRoleSchema>;
+//export type DocumentRole = z.infer<typeof documentRoleSchema>;
 
 /* =========================
    Create Document
