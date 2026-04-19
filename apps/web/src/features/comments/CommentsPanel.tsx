@@ -95,9 +95,10 @@ function ActionButton({
       className={[
         "inline-flex h-8 w-8 items-center justify-center rounded-lg border text-sm transition-colors",
         "focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2",
+        "disabled:cursor-not-allowed disabled:shadow-none",
         danger
-          ? "border-red-200 text-red-700 hover:bg-red-50 disabled:border-red-100 disabled:text-red-300"
-          : "border-gray-200 text-gray-700 hover:bg-gray-50 disabled:text-gray-300 disabled:border-gray-100",
+          ? "border-red-200 text-red-700 hover:bg-red-50 disabled:border-red-100 disabled:bg-red-50/40 disabled:text-red-300"
+          : "border-gray-200 text-gray-700 hover:bg-gray-50 disabled:border-gray-100 disabled:bg-gray-50 disabled:text-gray-300",
       ].join(" ")}
     >
       <span aria-hidden>{icon}</span>
