@@ -5,6 +5,7 @@
 
 import { clearSession } from "../app/session";
 import { disconnectSocket } from "../features/realtime/socket";
+import { getDocumentLinkToken } from "./documentAccess";
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ?? "http://localhost:4000/api";
@@ -18,6 +19,10 @@ function getOrgId(): string | null {
   if (!raw) return null;
   const trimmed = raw.trim();
   return trimmed.length > 0 ? trimmed : null;
+}
+
+function getDocumentAccessToken(): string | null {
+  return getDocumentLinkToken();
 }
 
 type HttpOptions = {
@@ -156,11 +161,13 @@ async function refreshAccessToken(): Promise<string | null> {
 export async function http<T>(path: string, opts: HttpOptions = {}): Promise<T> {
   const token = getToken();
   const orgId = getOrgId();
+  const documentAccessToken = getDocumentAccessToken();
 
   const headers: Record<string, string> = {
     ...(opts.body !== undefined ? { "content-type": "application/json" } : {}),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...(orgId ? { "x-org-id": orgId } : {}),
+    ...(documentAccessToken ? { "x-document-link-token": documentAccessToken } : {}),
     ...(opts.headers ?? {}),
   };
 

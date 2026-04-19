@@ -147,7 +147,7 @@ WEB_PORT=5173
 
 ---
 
-> ℹ️ The `JWT_SECRET` and `REALTIME_INTERNAL_SECRET` must be the same across services to ensure proper authentication and internal communication.
+> The `JWT_SECRET` and `REALTIME_INTERNAL_SECRET` must be the same across services to ensure proper authentication and internal communication.
 
 ---
 
@@ -214,6 +214,33 @@ pnpm prisma:seed
 From repo root:
 
 ```bash
+./run.sh
+```
+
+If needed, make it executable first:
+
+```bash
+chmod +x run.sh
+./run.sh
+```
+
+What `run.sh` does:
+
+- builds the shared `packages/contracts` package first
+- starts all app services from the repository root
+- gives you a single-command local startup flow for the project
+
+How to use it:
+
+1. Make sure the `.env` files are created for each app.
+2. Make sure Docker/PostgreSQL is already running and Prisma setup has been completed.
+3. Run `./run.sh` from the repository root.
+4. Leave that terminal open while the app is running.
+5. Open the web app at `http://localhost:5173`.
+
+If you prefer to start the monorepo directly without the wrapper script, you can also use:
+
+```bash
 pnpm dev
 ```
 
@@ -224,6 +251,89 @@ Services:
 * AI Service: [http://localhost:4002](http://localhost:4002)
 * Web: [http://localhost:5173](http://localhost:5173)
 ---
+
+## Architecture Overview
+
+The application is split into four cooperating services:
+
+- `apps/web`: React + Vite frontend with Tiptap editor, AI suggestion UI, presence UI, and document dashboard.
+- `apps/api`: Core authenticated API for auth, documents, sharing, comments, versions, and AI job orchestration.
+- `apps/realtime`: Authenticated Socket.IO collaboration service using Yjs for shared document state and awareness.
+- `apps/ai-service`: AI execution service that streams model output back to the API and persists job metadata through the API layer.
+
+Shared DTOs and schemas live in `packages/contracts`.
+
+## JWT Lifecycle
+
+- Login/signup issues a short-lived access token and sets a refresh token in an HttpOnly cookie.
+- The frontend stores the access token locally and sends it on API requests.
+- If an API call returns `401`, the frontend silently calls `/api/auth/refresh`.
+- A successful refresh returns a new access token without interrupting the editing session.
+- If refresh fails, the client clears session state and redirects to login.
+
+Current defaults:
+
+- Access token TTL: 20 minutes
+- Refresh token TTL: 7 days
+
+## Realtime Collaboration Design
+
+- WebSocket authentication is required before joining document rooms.
+- Each collaborator joins a document-specific room after the API confirms access.
+- Yjs is used for character-level shared state and conflict resolution.
+- Presence and cursor awareness are broadcast separately from document content.
+- On disconnect, the editor becomes read-only.
+- On reconnect, the client re-authenticates, rejoins the room, resyncs Yjs state, and resumes editing.
+
+Main message categories:
+
+- `join_document` / `leave_document`
+- `yjs:sync_step1` / `yjs:sync_step2`
+- `yjs:update`
+- `yjs:awareness_update`
+- `presence:update`
+- `cursor:batch`
+
+## AI Flow
+
+1. The user selects document text and opens the AI suggestion panel.
+2. The frontend sends a streamed AI job request with only the selected text plus operation-specific parameters.
+3. The API checks document permissions and AI policy, then creates a persisted AI job.
+4. The API forwards the request to the AI service and streams chunks back to the browser over SSE.
+5. The user can cancel, edit the generated text, keep only a selected portion, accept, reject, or undo an accepted apply.
+6. Accepted suggestions create a new document version and are recorded in AI history.
+
+Implemented AI operations include:
+
+- Rewrite / enhance writing
+- Summarize
+- Translate
+- Reformat
+
+Prompt templates are centralized in `apps/ai-service/src/modules/jobs/promptTemplates.ts`, and the model provider is abstracted behind `apps/ai-service/src/providers/llmProvider.ts`.
+
+## Sharing and Permissions
+
+- Document roles: `Owner`, `Editor`, `Commenter`, `Viewer`
+- Owners can share, update permissions, revoke access, and delete documents.
+- Editors can modify content and invoke AI.
+- Viewers can read but cannot edit or invoke AI.
+- Server-side checks are enforced on document, comment, version, and AI routes.
+- Sharing supports both email-based invites and direct link creation with role assignment.
+
+## Testing Coverage
+
+- Backend unit tests cover permission logic and AI policy logic.
+- Backend integration tests cover auth, documents, admin routes, AI routes, and auth guards.
+- Realtime integration tests cover websocket auth, shared updates, reconnect/resync, and presence behavior.
+- Frontend integration tests cover login, documents UI, AI history, and AI suggestion flows.
+- Playwright journeys cover login, document creation/opening, history panels, and AI suggestion acceptance flow.
+
+## API Documentation
+
+- Request/response schemas are defined in `packages/contracts`.
+- A Postman collection is available at `docs/api/postman_collection.json`.
+- The main route modules are in `apps/api/src/routes` and `apps/api/src/modules`.
 
 ## Testing
 

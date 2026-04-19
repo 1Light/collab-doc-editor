@@ -5,6 +5,7 @@ import crypto from "node:crypto";
 import { ERROR_CODES } from "@repo/contracts";
 import type { DocumentRole } from "@repo/contracts";
 import { prisma } from "../../lib/prisma";
+import { getDocumentLinkToken } from "../../lib/documentLinkAccess";
 import { documentService } from "./documentService";
 import { exportService } from "./exportService";
 import { permissionService } from "../permissions/permissionService";
@@ -102,6 +103,7 @@ export const documentController = {
       const role = await permissionService.resolveEffectiveRole({
         documentId,
         userId: req.authUser.id,
+        linkToken: getDocumentLinkToken(req),
       });
 
       if (!role) {
@@ -150,6 +152,7 @@ export const documentController = {
       const role = await permissionService.resolveEffectiveRole({
         documentId,
         userId: req.authUser.id,
+        linkToken: getDocumentLinkToken(req),
       });
 
       if (!role) {
@@ -200,6 +203,7 @@ export const documentController = {
       const role = await permissionService.resolveEffectiveRole({
         documentId,
         userId: req.authUser.id,
+        linkToken: getDocumentLinkToken(req),
       });
 
       if (role !== "Owner") {
@@ -238,6 +242,7 @@ export const documentController = {
           const role = await permissionService.resolveEffectiveRole({
             documentId: d.id,
             userId: req.authUser!.id,
+            linkToken: getDocumentLinkToken(req),
           });
           return [d.id, role] as const;
         })
@@ -276,6 +281,7 @@ export const documentController = {
       const role = await permissionService.resolveEffectiveRole({
         documentId,
         userId: req.authUser.id,
+        linkToken: getDocumentLinkToken(req),
       });
 
       if (!role) {

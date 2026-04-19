@@ -20,6 +20,7 @@ type ApplyMode = "replace" | "insert_below";
 type CreateJobParams = {
   documentId: string;
   requesterId: string;
+  linkToken?: string;
   operation: AIOperation;
   selection: { start: number; end: number; text: string };
   parameters?: {
@@ -40,6 +41,7 @@ type ApplyJobParams = {
   jobId: string;
   requesterId: string;
   finalText: string;
+  linkToken?: string;
 };
 
 type NormalizedAIParameters = {
@@ -504,6 +506,7 @@ export const aiJobService = {
     const role = await permissionService.resolveEffectiveRole({
       documentId: params.documentId,
       userId: params.requesterId,
+      linkToken: params.linkToken,
     });
     if (!role) throw apiError(ERROR_CODES.FORBIDDEN, "No access to this document");
 
@@ -559,6 +562,7 @@ export const aiJobService = {
     const role = await permissionService.resolveEffectiveRole({
       documentId: params.documentId,
       userId: params.requesterId,
+      linkToken: params.linkToken,
     });
     if (!role) throw apiError(ERROR_CODES.FORBIDDEN, "No access to this document");
 
@@ -630,10 +634,11 @@ export const aiJobService = {
     }
   },
 
-  async listHistory(documentId: string, requesterId: string) {
+  async listHistory(documentId: string, requesterId: string, linkToken?: string) {
     const role = await permissionService.resolveEffectiveRole({
       documentId,
       userId: requesterId,
+      linkToken,
     });
     if (!role) {
       throw apiError(ERROR_CODES.FORBIDDEN, "No access to this document");
@@ -677,13 +682,14 @@ export const aiJobService = {
     });
   },
 
-  async rejectJob(jobId: string, requesterId: string) {
+  async rejectJob(jobId: string, requesterId: string, linkToken?: string) {
     const job = await aiJobRepo.findById(jobId);
     if (!job) throw apiError(ERROR_CODES.NOT_FOUND, "AI job not found");
 
     const role = await permissionService.resolveEffectiveRole({
       documentId: job.documentId,
       userId: requesterId,
+      linkToken,
     });
     if (!role) throw apiError(ERROR_CODES.FORBIDDEN, "No access to this AI job");
 
@@ -723,6 +729,7 @@ export const aiJobService = {
     const role = await permissionService.resolveEffectiveRole({
       documentId: doc.id,
       userId: params.requesterId,
+      linkToken: params.linkToken,
     });
     if (!role) throw apiError(ERROR_CODES.FORBIDDEN, "No access to this document");
     if (!["Editor", "Owner"].includes(role)) {

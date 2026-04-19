@@ -185,8 +185,35 @@ describe("Document routes", () => {
     expect(mockResolveEffectiveRole).toHaveBeenCalledWith({
       documentId: "doc-1",
       userId: "user-1",
+      linkToken: null,
     });
     expect(mockGetDocument).toHaveBeenCalledWith("doc-1");
+  });
+
+  it("forwards a share-link token into document access checks", async () => {
+    mockResolveEffectiveRole.mockResolvedValueOnce("Viewer");
+    mockGetDocument.mockResolvedValue({
+      id: "doc-1",
+      title: "Shared Doc",
+      content: "Read only",
+      headVersionId: "ver-2",
+      updatedAt: new Date("2026-03-28T14:05:00.000Z"),
+    });
+
+    const { createApp } = await import("../../src/app");
+    const app = createApp();
+
+    const res = await request(app)
+      .get("/api/documents/doc-1")
+      .set("Authorization", "Bearer fake-token")
+      .set("x-document-link-token", "share-token-1");
+
+    expect(res.status).toBe(200);
+    expect(mockResolveEffectiveRole).toHaveBeenCalledWith({
+      documentId: "doc-1",
+      userId: "user-1",
+      linkToken: "share-token-1",
+    });
   });
 
   it("returns 403 when the user has no access to the document", async () => {
@@ -230,6 +257,7 @@ describe("Document routes", () => {
     expect(mockResolveEffectiveRole).toHaveBeenCalledWith({
       documentId: "doc-1",
       userId: "user-1",
+      linkToken: null,
     });
 
     expect(mockExportDocument).toHaveBeenCalledWith({
