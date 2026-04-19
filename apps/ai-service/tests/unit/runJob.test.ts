@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const mockRun = vi.fn();
+const mockStream = vi.fn();
 const mockWithRetry = vi.fn();
 const mockBuildPrompt = vi.fn();
 
@@ -13,12 +14,14 @@ vi.mock("../../src/config/env", () => ({
 vi.mock("../../src/providers/mockProvider", () => ({
   MockProvider: vi.fn().mockImplementation(() => ({
     run: mockRun,
+    stream: mockStream,
   })),
 }));
 
 vi.mock("../../src/providers/lmStudioProvider", () => ({
   LMStudioProvider: vi.fn().mockImplementation(() => ({
     run: mockRun,
+    stream: mockStream,
   })),
 }));
 
@@ -114,5 +117,36 @@ describe("runJob", () => {
         parameters: { language: "Arabic" },
       })
     ).rejects.toThrow("network timeout");
+  });
+
+  it("streams chunks and returns final streamed metadata", async () => {
+    mockBuildPrompt.mockReturnValue("stream prompt");
+    const onChunk = vi.fn();
+
+    mockStream.mockImplementation(async ({ onChunk: emit }: any) => {
+      await emit("Hello ");
+      await emit("world");
+      return {
+        result: "Hello world",
+        prompt: "stream prompt",
+        model: "mock-model",
+      };
+    });
+
+    const { streamJob } = await import("../../src/modules/jobs/runJob");
+
+    const out = await streamJob({
+      jobId: "job-stream",
+      operation: "enhance",
+      selectedText: "draft text",
+      onChunk,
+    });
+
+    expect(onChunk).toHaveBeenCalledTimes(2);
+    expect(out).toEqual({
+      result: "Hello world",
+      prompt: "stream prompt",
+      model: "mock-model",
+    });
   });
 });

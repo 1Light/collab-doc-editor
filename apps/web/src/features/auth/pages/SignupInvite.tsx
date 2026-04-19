@@ -31,6 +31,15 @@ function formatDateTime(value: string) {
   });
 }
 
+function getErrorMessage(err: unknown, fallback: string) {
+  if (err instanceof Error && err.message.trim()) return err.message;
+  if (typeof err === "object" && err !== null && "message" in err) {
+    const message = (err as { message?: unknown }).message;
+    if (typeof message === "string" && message.trim()) return message;
+  }
+  return fallback;
+}
+
 export function SignupInvite({ token, onSignedUp, onGoToLogin }: Props) {
   const [preview, setPreview] = useState<OrgInvitePreviewResponse | null>(null);
   const [previewLoading, setPreviewLoading] = useState(true);
@@ -69,13 +78,13 @@ export function SignupInvite({ token, onSignedUp, onGoToLogin }: Props) {
 
         setPreview(out);
 
-        if (out?.email && !email.trim()) {
-          setEmail(out.email);
+        if (out?.email) {
+          setEmail((current) => (current.trim() ? current : out.email));
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (!alive) return;
         setPreview(null);
-        setPreviewError(err?.message ?? "Failed to load invite");
+        setPreviewError(getErrorMessage(err, "Failed to load invite"));
       } finally {
         if (alive) setPreviewLoading(false);
       }
@@ -146,8 +155,8 @@ export function SignupInvite({ token, onSignedUp, onGoToLogin }: Props) {
       });
 
       await onSignedUp?.();
-    } catch (err: any) {
-      setError(err?.message ?? "Failed to create account from invite");
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, "Failed to create account from invite"));
     } finally {
       setLoading(false);
     }

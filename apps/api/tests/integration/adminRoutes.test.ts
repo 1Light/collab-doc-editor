@@ -14,6 +14,10 @@ const mockFindMany = vi.fn();
 const mockUpdate = vi.fn();
 const mockDelete = vi.fn();
 const mockCount = vi.fn();
+const mockUpdateMany = vi.fn();
+const mockUpsert = vi.fn();
+const mockTransaction = vi.fn();
+const mockOrgAdminDataChanged = vi.fn();
 
 let mockAuthUser: any = {
   id: "user-1",
@@ -58,6 +62,12 @@ vi.mock("../../src/integrations/emailService", () => ({
   },
 }));
 
+vi.mock("../../src/integrations/realtimeNotifyService", () => ({
+  realtimeNotifyService: {
+    orgAdminDataChanged: mockOrgAdminDataChanged,
+  },
+}));
+
 vi.mock("../../src/lib/prisma", () => ({
   prisma: {
     auditLog: {
@@ -67,6 +77,7 @@ vi.mock("../../src/lib/prisma", () => ({
     organizationMember: {
       findMany: mockFindMany,
       findUnique: mockFindUnique,
+      findFirst: mockFindFirst,
       update: mockUpdate,
       count: mockCount,
       delete: mockDelete,
@@ -87,10 +98,14 @@ vi.mock("../../src/lib/prisma", () => ({
     document: {
       findFirst: mockFindFirst,
       findUnique: mockFindUnique,
+      findMany: mockFindMany,
+      updateMany: mockUpdateMany,
     },
     documentPermission: {
       deleteMany: mockDelete,
+      upsert: mockUpsert,
     },
+    $transaction: mockTransaction,
   },
 }));
 
@@ -155,6 +170,23 @@ describe("Admin routes", () => {
     });
     mockDelete.mockResolvedValue({ count: 1 });
     mockCount.mockResolvedValue(2);
+    mockUpdateMany.mockResolvedValue({ count: 0 });
+    mockUpsert.mockResolvedValue({});
+    mockTransaction.mockImplementation(async (cb: any) =>
+      cb({
+        document: {
+          findMany: mockFindMany,
+          updateMany: mockUpdateMany,
+        },
+        organizationMember: {
+          delete: mockDelete,
+        },
+        documentPermission: {
+          deleteMany: mockDelete,
+          upsert: mockUpsert,
+        },
+      })
+    );
   });
 
   it("allows OrgAdmin to read AI policy", async () => {
@@ -312,5 +344,48 @@ describe("Admin routes", () => {
 
     expect(res.status).toBe(403);
     expect(res.body.message).toBe("No access to this document");
+  });
+
+  it("transfers owned documents to the org owner when removing a member", async () => {
+    mockFindUnique.mockResolvedValueOnce({
+      orgRole: null,
+      user: { email: "member@example.com", id: "user-2" },
+    });
+
+    mockFindFirst.mockResolvedValueOnce({
+      userId: "owner-1",
+    });
+
+    mockFindMany.mockResolvedValueOnce([
+      { id: "doc-1" },
+      { id: "doc-2" },
+    ]);
+
+    const { createApp } = await import("../../src/app");
+    const app = createApp();
+
+    const res = await request(app)
+      .delete("/api/admin/users/user-2")
+      .set("Authorization", "Bearer fake-token");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ removed: true, userId: "user-2" });
+    expect(mockUpdateMany).toHaveBeenCalledWith({
+      where: {
+        orgId: "org-1",
+        ownerId: "user-2",
+        isDeleted: false,
+      },
+      data: {
+        ownerId: "owner-1",
+      },
+    });
+    expect(mockUpsert).toHaveBeenCalledTimes(2);
+    expect(mockOrgAdminDataChanged).toHaveBeenCalledWith({
+      orgId: "org-1",
+      reason: "member_removed",
+      actorUserId: "user-1",
+      targetUserId: "user-2",
+    });
   });
 });

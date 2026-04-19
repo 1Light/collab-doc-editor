@@ -16,6 +16,7 @@ import {
 import { disconnectSocket } from "./features/realtime/socket";
 
 import { Login } from "./features/auth/pages/Login";
+import { OrganizationsPage } from "./features/auth/pages/Organizations";
 import { SignupMember } from "./features/auth/pages/SignupMember";
 import { SignupOwner } from "./features/auth/pages/SignupOwner";
 import { SignupInvite } from "./features/auth/pages/SignupInvite";
@@ -54,6 +55,7 @@ function isProtectedPath(pathname: string) {
   return (
     pathname === "/documents" ||
     pathname.startsWith("/documents/") ||
+    pathname === "/organizations" ||
     pathname === "/admin" ||
     pathname.startsWith("/invite/org/") ||
     pathname.startsWith("/invite/document/")
@@ -64,6 +66,15 @@ function defaultAuthedPath(user: MeUser | null) {
   return user?.orgRole === "OrgAdmin" || user?.orgRole === "OrgOwner"
     ? "/admin"
     : "/documents";
+}
+
+function getErrorMessage(err: unknown, fallback: string) {
+  if (err instanceof Error && err.message.trim()) return err.message;
+  if (typeof err === "object" && err !== null && "message" in err) {
+    const message = (err as { message?: unknown }).message;
+    if (typeof message === "string" && message.trim()) return message;
+  }
+  return fallback;
 }
 
 export default function App() {
@@ -255,6 +266,25 @@ export default function App() {
     }
   }
 
+  async function refreshCurrentUser() {
+    try {
+      const u = await fetchMe();
+      const normalized = normalizeMe(u);
+      setMe(normalized);
+      localStorage.setItem("me", JSON.stringify(normalized));
+    } catch {
+      try {
+        disconnectSocket();
+      } catch {
+        // ignore
+      }
+
+      clearSession();
+      setMe(null);
+      navigate("/login", { replace: true });
+    }
+  }
+
   async function doLogout() {
     try {
       disconnectSocket();
@@ -290,8 +320,8 @@ export default function App() {
       setMe(null);
       navigate("/login", { replace: true });
       window.alert("Your account has been deleted.");
-    } catch (e: any) {
-      window.alert(e?.message ?? "Failed to delete account");
+    } catch (e: unknown) {
+      window.alert(getErrorMessage(e, "Failed to delete account"));
     } finally {
       setIsDeletingAccount(false);
     }
@@ -319,6 +349,7 @@ export default function App() {
           isAdmin={isAdmin}
           isOrgOwner={isOrgOwner}
           inAdmin={inAdmin}
+          onOpenOrganizations={() => navigate("/organizations")}
           onToggleAdmin={() => navigate(inAdmin ? "/documents" : "/admin")}
           onDeleteAccount={handleDeleteAccount}
           onLogout={doLogout}
@@ -392,6 +423,20 @@ export default function App() {
         <Route
           path="/documents/:documentId"
           element={hasToken() ? <EditorRoute /> : <Navigate to="/login" replace />}
+        />
+
+        <Route
+          path="/organizations"
+          element={
+            hasToken() ? (
+              <OrganizationsPage
+                onSessionChanged={refreshCurrentUser}
+                onOpenWorkspace={() => navigate(defaultAuthedPath(readMeLocal()), { replace: true })}
+              />
+            ) : (
+              <Navigate to="/login" replace />
+            )
+          }
         />
 
         <Route
@@ -549,7 +594,13 @@ function DocumentInviteAcceptRoute(props: {
   );
 }
 
-function OrgInviteAcceptView(props: {
+function OrgInviteAcceptView({
+  token,
+  meEmail,
+  onAccepted,
+  onSwitchAccount,
+  onCancel,
+}: {
   token: string;
   meEmail?: string;
   onAccepted: () => void;
@@ -567,28 +618,28 @@ function OrgInviteAcceptView(props: {
       setError(null);
 
       try {
-        const out = await acceptOrgInviteToken(props.token);
+        const out = await acceptOrgInviteToken(token);
         if (!alive) return;
 
         if (out?.joined) {
           setStatus("accepted");
-          props.onAccepted();
+          onAccepted();
           return;
         }
 
         setStatus("error");
         setError("Invite could not be accepted.");
-      } catch (e: any) {
+      } catch (e: unknown) {
         if (!alive) return;
         setStatus("error");
-        setError(e?.message ?? "Failed to accept organization invite");
+        setError(getErrorMessage(e, "Failed to accept organization invite"));
       }
     })();
 
     return () => {
       alive = false;
     };
-  }, [props.token, props.onAccepted]);
+  }, [token, onAccepted]);
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-10">
@@ -609,9 +660,9 @@ function OrgInviteAcceptView(props: {
             </div>
 
             <div className="mt-3 text-xs text-gray-600">
-              {props.meEmail ? (
+              {meEmail ? (
                 <>
-                  You are currently logged in as: <span className="font-medium">{props.meEmail}</span>.
+                  You are currently logged in as: <span className="font-medium">{meEmail}</span>.
                 </>
               ) : (
                 <>You may be logged in with the wrong account.</>
@@ -621,7 +672,7 @@ function OrgInviteAcceptView(props: {
             <div className="mt-4 flex gap-2">
               <button
                 type="button"
-                onClick={props.onSwitchAccount}
+                onClick={onSwitchAccount}
                 className="rounded-xl border border-gray-200 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
               >
                 Switch account
@@ -629,7 +680,7 @@ function OrgInviteAcceptView(props: {
 
               <button
                 type="button"
-                onClick={props.onCancel}
+                onClick={onCancel}
                 className="rounded-xl border border-gray-200 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
               >
                 Cancel
@@ -646,7 +697,13 @@ function OrgInviteAcceptView(props: {
   );
 }
 
-function DocumentInviteAcceptView(props: {
+function DocumentInviteAcceptView({
+  token,
+  meEmail,
+  onAccepted,
+  onSwitchAccount,
+  onCancel,
+}: {
   token: string;
   meEmail?: string;
   onAccepted: () => void;
@@ -664,28 +721,28 @@ function DocumentInviteAcceptView(props: {
       setError(null);
 
       try {
-        const out = await acceptDocumentInviteToken(props.token);
+        const out = await acceptDocumentInviteToken(token);
         if (!alive) return;
 
         if (out?.accepted) {
           setStatus("accepted");
-          props.onAccepted();
+          onAccepted();
           return;
         }
 
         setStatus("error");
         setError("Invite could not be accepted.");
-      } catch (e: any) {
+      } catch (e: unknown) {
         if (!alive) return;
         setStatus("error");
-        setError(e?.message ?? "Failed to accept document invite");
+        setError(getErrorMessage(e, "Failed to accept document invite"));
       }
     })();
 
     return () => {
       alive = false;
     };
-  }, [props.token, props.onAccepted]);
+  }, [token, onAccepted]);
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-10">
@@ -706,9 +763,9 @@ function DocumentInviteAcceptView(props: {
             </div>
 
             <div className="mt-3 text-xs text-gray-600">
-              {props.meEmail ? (
+              {meEmail ? (
                 <>
-                  You are currently logged in as: <span className="font-medium">{props.meEmail}</span>.
+                  You are currently logged in as: <span className="font-medium">{meEmail}</span>.
                 </>
               ) : (
                 <>You may be logged in with the wrong account.</>
@@ -718,7 +775,7 @@ function DocumentInviteAcceptView(props: {
             <div className="mt-4 flex gap-2">
               <button
                 type="button"
-                onClick={props.onSwitchAccount}
+                onClick={onSwitchAccount}
                 className="rounded-xl border border-gray-200 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
               >
                 Switch account
@@ -726,7 +783,7 @@ function DocumentInviteAcceptView(props: {
 
               <button
                 type="button"
-                onClick={props.onCancel}
+                onClick={onCancel}
                 className="rounded-xl border border-gray-200 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
               >
                 Cancel

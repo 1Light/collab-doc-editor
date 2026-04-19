@@ -75,6 +75,45 @@ router.get(
 );
 
 /**
+ * GET /auth/organizations
+ * List organizations the current user belongs to, with document summaries.
+ */
+router.get(
+  "/organizations",
+  authMiddleware,
+  authController.listOrganizations
+);
+
+/**
+ * POST /auth/switch-organization
+ * Switch active organization context for the current session.
+ */
+router.post(
+  "/switch-organization",
+  authMiddleware,
+  authController.switchOrganization
+);
+
+/**
+ * DELETE /auth/organizations/:orgId/leave
+ * Leave an organization as a non-owner member/admin.
+ */
+router.delete(
+  "/organizations/:orgId/leave",
+  authMiddleware,
+  authController.leaveOrganization
+);
+
+/**
+ * POST /auth/refresh
+ * Uses HttpOnly refresh token cookie to silently issue a new access token.
+ */
+router.post(
+  "/refresh",
+  authController.refresh
+);
+
+/**
  * DELETE /auth/account
  * Self-delete account
  */

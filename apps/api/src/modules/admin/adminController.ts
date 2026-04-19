@@ -5,6 +5,7 @@ import { ERROR_CODES } from "@repo/contracts";
 import { aiPolicyService } from "../ai/aiPolicyService";
 import { auditLogService } from "../audit/auditLogService";
 import { emailService } from "../../integrations/emailService";
+import { realtimeNotifyService } from "../../integrations/realtimeNotifyService";
 import { prisma } from "../../lib/prisma";
 
 const WEB_APP_URL =
@@ -59,6 +60,71 @@ function hashInviteToken(rawToken: string) {
 
 function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+}
+
+async function transferOwnedDocumentsInOrg(params: {
+  tx: Pick<typeof prisma, "document" | "documentPermission">;
+  orgId: string;
+  fromUserId: string;
+  toUserId: string;
+  grantedById?: string | null;
+}) {
+  const ownedDocs = await params.tx.document.findMany({
+    where: {
+      orgId: params.orgId,
+      ownerId: params.fromUserId,
+      isDeleted: false,
+    },
+    select: { id: true },
+  });
+
+  if (ownedDocs.length === 0) {
+    return 0;
+  }
+
+  await params.tx.document.updateMany({
+    where: {
+      orgId: params.orgId,
+      ownerId: params.fromUserId,
+      isDeleted: false,
+    },
+    data: {
+      ownerId: params.toUserId,
+    },
+  });
+
+  for (const doc of ownedDocs) {
+    await params.tx.documentPermission.deleteMany({
+      where: {
+        documentId: doc.id,
+        principalType: "user",
+        principalId: params.fromUserId,
+      },
+    });
+
+    await params.tx.documentPermission.upsert({
+      where: {
+        documentId_principalType_principalId: {
+          documentId: doc.id,
+          principalType: "user",
+          principalId: params.toUserId,
+        },
+      },
+      create: {
+        documentId: doc.id,
+        principalType: "user",
+        principalId: params.toUserId,
+        role: "Owner",
+        ...(params.grantedById !== undefined ? { grantedById: params.grantedById } : {}),
+      },
+      update: {
+        role: "Owner",
+        ...(params.grantedById !== undefined ? { grantedById: params.grantedById } : {}),
+      },
+    });
+  }
+
+  return ownedDocs.length;
 }
 
 function buildOrgInviteDto(invite: {
@@ -389,6 +455,13 @@ export const adminController = {
         metadata: { targetUserId: userId, orgRole: orgRole ?? null },
       });
 
+      await realtimeNotifyService.orgAdminDataChanged({
+        orgId,
+        reason: "member_role_updated",
+        actorUserId: req.authUser.id,
+        targetUserId: userId,
+      });
+
       return res.json({
         userId,
         orgId,
@@ -442,23 +515,65 @@ export const adminController = {
         }
       }
 
-      await prisma.organizationMember.delete({
-        where: { orgId_userId: { orgId, userId: targetUserId } },
+      const orgOwnerMembership = await prisma.organizationMember.findFirst({
+        where: {
+          orgId,
+          orgRole: "OrgOwner",
+        },
+        select: { userId: true },
       });
 
-      await prisma.documentPermission.deleteMany({
-        where: {
-          principalType: "user",
-          principalId: targetUserId,
-          document: { orgId },
-        },
+      if (!orgOwnerMembership?.userId) {
+        throw {
+          code: ERROR_CODES.INTERNAL_ERROR,
+          message: "Organization owner is required before removing members",
+        };
+      }
+
+      const successorOwnerId = orgOwnerMembership.userId;
+
+      const transferredDocumentCount = await prisma.$transaction(async (tx) => {
+        const transferred = await transferOwnedDocumentsInOrg({
+          tx,
+          orgId,
+          fromUserId: targetUserId,
+          toUserId: successorOwnerId,
+          grantedById: req.authUser?.id ?? null,
+        });
+
+        await tx.organizationMember.delete({
+          where: { orgId_userId: { orgId, userId: targetUserId } },
+        });
+
+        await tx.documentPermission.deleteMany({
+          where: {
+            principalType: "user",
+            principalId: targetUserId,
+            document: { orgId },
+          },
+        });
+
+        return transferred;
       });
 
       await auditLogService.logAction({
         userId: req.authUser.id,
         orgId,
         actionType: "ORG_MEMBER_REMOVED",
-        metadata: { targetUserId, targetEmail, targetRole },
+        metadata: {
+          targetUserId,
+          targetEmail,
+          targetRole,
+          successorOwnerId,
+          transferredDocumentCount,
+        },
+      });
+
+      await realtimeNotifyService.orgAdminDataChanged({
+        orgId,
+        reason: "member_removed",
+        actorUserId: req.authUser.id,
+        targetUserId,
       });
 
       return res.json({ removed: true, userId: targetUserId });
@@ -619,6 +734,13 @@ export const adminController = {
         },
       });
 
+      await realtimeNotifyService.orgAdminDataChanged({
+        orgId,
+        reason: "invite_created",
+        actorUserId: req.authUser.id,
+        inviteId: created.id,
+      });
+
       return res.status(201).json(
         buildOrgInviteDto({
           ...created,
@@ -728,6 +850,13 @@ export const adminController = {
         },
       });
 
+      await realtimeNotifyService.orgAdminDataChanged({
+        orgId,
+        reason: "invite_re_sent",
+        actorUserId: req.authUser.id,
+        inviteId: updated.id,
+      });
+
       return res.json(
         buildOrgInviteDto({
           ...updated,
@@ -790,6 +919,13 @@ export const adminController = {
           email: existing.email,
           orgRole: existing.orgRole ?? null,
         },
+      });
+
+      await realtimeNotifyService.orgAdminDataChanged({
+        orgId,
+        reason: "invite_revoked",
+        actorUserId: req.authUser.id,
+        inviteId,
       });
 
       return res.json({ revoked: true, inviteId });

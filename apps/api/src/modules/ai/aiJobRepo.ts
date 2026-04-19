@@ -21,7 +21,7 @@ export const aiJobRepo = {
         selectionStart: data.selectionStart,
         selectionEnd: data.selectionEnd,
         // Prefer a stable JSON value over undefined
-        parameters: data.parameters ?? {},
+        parameters: (data.parameters ?? {}) as any,
         basedOnVersionId: data.basedOnVersionId ?? null,
         status: AIJobStatus.queued,
       },
@@ -37,7 +37,7 @@ export const aiJobRepo = {
   async updateStatus(
     id: string,
     status: AIJobStatus,
-    data?: { result?: string; errorMessage?: string }
+    data?: { result?: string; errorMessage?: string; parameters?: unknown }
   ) {
     // Clear stale fields when transitioning between states
     // Assumes result/errorMessage are nullable columns in Prisma.
@@ -60,9 +60,22 @@ export const aiJobRepo = {
       base.errorMessage = data?.errorMessage ?? "AI job failed";
     }
 
+    if (data?.parameters !== undefined) {
+      base.parameters = data.parameters as any;
+    }
+
     return prisma.aIJob.update({
       where: { id },
       data: base,
+    });
+  },
+
+  async updateParameters(id: string, parameters: unknown) {
+    return prisma.aIJob.update({
+      where: { id },
+      data: {
+        parameters: parameters as any,
+      },
     });
   },
 
@@ -70,6 +83,18 @@ export const aiJobRepo = {
     return prisma.aIJob.findMany({
       where: { documentId },
       orderBy: { createdAt: "desc" },
+      include: {
+        applications: {
+          orderBy: { createdAt: "desc" },
+        },
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
     });
   },
 

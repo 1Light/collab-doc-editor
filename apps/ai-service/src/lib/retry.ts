@@ -1,4 +1,4 @@
-// apps/ai-service/src/resilience/retry.ts
+// apps/ai-service/src/lib/retry.ts
 
 /**
  * Simple retry helper with exponential backoff + jitter.
@@ -6,10 +6,10 @@
  */
 
 export type RetryOptions = {
-  retries?: number;      // total attempts = 1 + retries
-  baseDelayMs?: number;  // initial backoff
-  maxDelayMs?: number;   // cap
-  jitterMs?: number;     // +/- jitter
+  retries?: number; // total attempts = 1 + retries
+  baseDelayMs?: number; // initial backoff
+  maxDelayMs?: number; // cap
+  jitterMs?: number; // +/- jitter
   shouldRetry?: (err: unknown) => boolean;
 };
 
@@ -30,9 +30,7 @@ export async function withRetry<T>(
   const maxDelayMs = opts.maxDelayMs ?? 3_000;
   const jitterMs = opts.jitterMs ?? 120;
 
-  const shouldRetry =
-    opts.shouldRetry ??
-    (() => true); // default retry on any error (MVP)
+  const shouldRetry = opts.shouldRetry ?? (() => true);
 
   let attempt = 0;
   // total attempts = 1 + retries

@@ -36,6 +36,15 @@ function formatDateTime(value: string) {
   });
 }
 
+function getErrorMessage(err: unknown, fallback: string) {
+  if (err instanceof Error && err.message.trim()) return err.message;
+  if (typeof err === "object" && err !== null && "message" in err) {
+    const message = (err as { message?: unknown }).message;
+    if (typeof message === "string" && message.trim()) return message;
+  }
+  return fallback;
+}
+
 export function Login({
   onLoggedIn,
   onGoToSignup,
@@ -81,13 +90,13 @@ export function Login({
 
         setPreview(out);
 
-        if (out?.email && !email.trim()) {
-          setEmail(out.email);
+        if (out?.email) {
+          setEmail((current) => (current.trim() ? current : out.email));
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (!alive) return;
         setPreview(null);
-        setPreviewError(err?.message ?? "Failed to load invite");
+        setPreviewError(getErrorMessage(err, "Failed to load invite"));
       } finally {
         if (alive) setPreviewLoading(false);
       }
@@ -158,8 +167,8 @@ export function Login({
     try {
       await login(emailTrimmed, password);
       onLoggedIn?.();
-    } catch (err: any) {
-      setError(err?.message ?? "Login failed");
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, "Login failed"));
     } finally {
       setLoading(false);
     }

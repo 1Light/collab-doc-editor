@@ -1,9 +1,9 @@
-// apps/realtime/src/utils/config.ts
+// apps/realtime/src/config/env.ts
 
 import { z } from "zod";
 
 /**
- * Environment configuration for Realtime Service
+ * Environment configuration for the realtime service.
  */
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
@@ -17,7 +17,7 @@ const envSchema = z.object({
 
   REALTIME_INTERNAL_SECRET: z.string().optional(),
 
-  // 🔐 Needed to verify document access via API
+  // Base API URL used to verify document access during socket joins.
   API_BASE_URL: z.string().url(),
 });
 

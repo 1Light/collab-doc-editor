@@ -180,6 +180,86 @@ export const aiJobController = {
   },
 
   /**
+   * POST /ai/jobs/stream
+   * Body: { documentId, operation, selection, parameters? }
+   * Res: SSE events: meta, chunk, done, error
+   */
+  async stream(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = assertAuth(req);
+
+      const { documentId, operation, selection, parameters } = req.body as {
+        documentId: unknown;
+        operation: unknown;
+        selection: unknown;
+        parameters?: unknown;
+      };
+
+      if (!documentId || typeof documentId !== "string") {
+        throw apiError(ERROR_CODES.INVALID_REQUEST, "documentId is required");
+      }
+
+      if (!isValidOperation(operation)) {
+        throw apiError(ERROR_CODES.INVALID_REQUEST, "Invalid operation");
+      }
+
+      const normalizedSelection = normalizeSelection(selection);
+      const normalizedParameters = normalizeParameters(parameters, operation);
+
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache, no-transform");
+      res.setHeader("Connection", "keep-alive");
+      res.flushHeaders?.();
+
+      const abortController = new AbortController();
+      req.on("close", () => abortController.abort());
+
+      const out = await aiJobService.streamJob({
+        documentId,
+        requesterId: user.id,
+        operation,
+        selection: normalizedSelection,
+        parameters: normalizedParameters,
+        signal: abortController.signal,
+        onChunk: async (chunk) => {
+          res.write(`event: chunk\n`);
+          res.write(`data: ${JSON.stringify({ chunk })}\n\n`);
+        },
+      });
+
+      res.write(`event: done\n`);
+      res.write(
+        `data: ${JSON.stringify({
+          jobId: out.jobId,
+          result: out.result,
+          prompt: out.prompt ?? null,
+          model: out.model ?? null,
+        })}\n\n`
+      );
+      res.end();
+    } catch (err: any) {
+      if (!res.headersSent) {
+        return next(err);
+      }
+
+      res.write(`event: error\n`);
+      res.write(
+        `data: ${JSON.stringify({
+          code:
+            err && typeof err === "object" && typeof err.code === "string"
+              ? err.code
+              : ERROR_CODES.AI_PROVIDER_UNAVAILABLE,
+          message:
+            err && typeof err === "object" && typeof err.message === "string"
+              ? err.message
+              : "AI provider unavailable",
+        })}\n\n`
+      );
+      res.end();
+    }
+  },
+
+  /**
    * GET /ai/jobs/:jobId
    * Must have access to the underlying document.
    */
@@ -210,6 +290,43 @@ export const aiJobController = {
         error: toJobError(job),
         createdAt: job.createdAt.toISOString(),
       });
+    } catch (err) {
+      return next(err);
+    }
+  },
+
+  /**
+   * GET /ai/history/:documentId
+   * List AI interaction history for a document.
+   */
+  async history(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = assertAuth(req);
+      const documentId = req.params.documentId;
+      if (!documentId) {
+        throw apiError(ERROR_CODES.INVALID_REQUEST, "documentId is required");
+      }
+
+      const history = await aiJobService.listHistory(documentId, user.id);
+      return res.json(history);
+    } catch (err) {
+      return next(err);
+    }
+  },
+
+  /**
+   * POST /ai/jobs/:jobId/reject
+   */
+  async reject(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = assertAuth(req);
+      const jobId = req.params.jobId;
+      if (!jobId) {
+        throw apiError(ERROR_CODES.INVALID_REQUEST, "jobId is required");
+      }
+
+      const out = await aiJobService.rejectJob(jobId, user.id);
+      return res.json(out);
     } catch (err) {
       return next(err);
     }

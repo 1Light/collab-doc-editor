@@ -1,6 +1,6 @@
 // apps/web/src/components/ui/Tooltip.tsx
 
-import React, { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 function cx(...parts: Array<string | undefined | false>) {
@@ -55,7 +55,7 @@ export function Tooltip({
     };
   }, []);
 
-  function updatePosition() {
+  const updatePosition = useCallback(() => {
     const anchor = anchorRef.current;
     const tooltip = tooltipRef.current;
     if (!anchor || !tooltip) return;
@@ -83,12 +83,12 @@ export function Tooltip({
     }
 
     setPosition({ top, left });
-  }
+  }, [side]);
 
   useLayoutEffect(() => {
     if (!visible) return;
     updatePosition();
-  }, [visible, side, content]);
+  }, [visible, content, updatePosition]);
 
   useEffect(() => {
     if (!visible) return;
@@ -102,7 +102,7 @@ export function Tooltip({
       window.removeEventListener("resize", handle);
       window.removeEventListener("scroll", handle, true);
     };
-  }, [visible, side, content]);
+  }, [visible, content, updatePosition]);
 
   function show() {
     if (timeoutRef.current !== null) {

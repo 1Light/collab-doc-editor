@@ -45,6 +45,30 @@ async function postInternal(path: string, body: unknown) {
 }
 
 export const realtimeNotifyService = {
+  async orgAdminDataChanged(input: {
+    orgId: string;
+    reason:
+      | "member_joined"
+      | "member_removed"
+      | "member_role_updated"
+      | "invite_created"
+      | "invite_accepted"
+      | "invite_re_sent"
+      | "invite_revoked";
+    actorUserId?: string | null;
+    targetUserId?: string | null;
+    inviteId?: string | null;
+  }) {
+    await postInternal("/internal/events/org-admin-data-changed", {
+      orgId: input.orgId,
+      reason: input.reason,
+      actorUserId: input.actorUserId ?? null,
+      targetUserId: input.targetUserId ?? null,
+      inviteId: input.inviteId ?? null,
+      emittedAt: new Date().toISOString(),
+    });
+  },
+
   async documentRoleUpdated(input: {
     documentId: string;
     userId: string;

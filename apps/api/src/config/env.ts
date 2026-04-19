@@ -1,4 +1,4 @@
-// apps/api/src/utils/config.ts
+// apps/api/src/config/env.ts
 
 import { z } from "zod";
 
@@ -11,12 +11,14 @@ const envSchema = z.object({
 
   DATABASE_URL: z.string().min(1),
   JWT_SECRET: z.string().min(16),
+  JWT_ACCESS_TTL_MINUTES: z.coerce.number().int().positive().default(20),
+  JWT_REFRESH_TTL_DAYS: z.coerce.number().int().positive().default(7),
 
-  // Internal service URL for ai-service (if you also call it by URL)
+  // Internal service URL for the AI service.
   AI_SERVICE_URL: z.string().url().optional(),
   AI_SERVICE_PORT: z.coerce.number().int().positive().optional(),
 
-  // CORS for web app: allow single URL or comma-separated list
+  // CORS origin for the web app.
   WEB_ORIGIN: z.string().optional(),
 
   // Realtime internal bridge (API -> realtime)

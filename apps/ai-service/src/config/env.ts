@@ -1,4 +1,4 @@
-// apps/ai-service/src/config/config.ts
+// apps/ai-service/src/config/env.ts
 
 import { z } from "zod";
 

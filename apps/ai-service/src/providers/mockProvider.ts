@@ -1,6 +1,11 @@
 // apps/ai-service/src/providers/mockProvider.ts
 
-import type { LLMProvider, LLMRunParams, LLMRunResult } from "./llmProvider";
+import type {
+  LLMProvider,
+  LLMRunParams,
+  LLMRunResult,
+  LLMStreamParams,
+} from "./llmProvider";
 
 /**
  * Deterministic mock provider for local dev + tests.
@@ -52,5 +57,21 @@ export class MockProvider implements LLMProvider {
       default:
         return { result: base };
     }
+  }
+
+  async stream(params: LLMStreamParams): Promise<LLMRunResult> {
+    const out = await this.run(params);
+    const pieces = out.result.match(/\S+\s*/g) ?? [out.result];
+
+    for (const piece of pieces) {
+      if (params.signal?.aborted) {
+        throw new Error("Stream aborted");
+      }
+
+      await params.onChunk(piece);
+      await new Promise((resolve) => setTimeout(resolve, 35));
+    }
+
+    return out;
   }
 }
