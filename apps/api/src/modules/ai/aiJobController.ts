@@ -215,7 +215,11 @@ export const aiJobController = {
       res.flushHeaders?.();
 
       const abortController = new AbortController();
-      req.on("close", () => abortController.abort());
+      res.on("close", () => {
+        if (!res.writableEnded) {
+          abortController.abort();
+        }
+      });
 
       const out = await aiJobService.streamJob({
         documentId,
@@ -312,10 +316,19 @@ export const aiJobController = {
         throw apiError(ERROR_CODES.INVALID_REQUEST, "documentId is required");
       }
 
+      const rawLimit = req.query.limit;
+      const parsedLimit =
+        typeof rawLimit === "string" && Number.isFinite(Number(rawLimit))
+          ? Math.floor(Number(rawLimit))
+          : 20;
+
+      const safeLimit = Math.max(1, Math.min(parsedLimit, 100));
+
       const history = await aiJobService.listHistory(
         documentId,
         user.id,
-        getDocumentLinkToken(req)
+        getDocumentLinkToken(req),
+        safeLimit
       );
       return res.json(history);
     } catch (err) {

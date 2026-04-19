@@ -81,6 +81,13 @@ export const realtimeNotifyService = {
     });
   },
 
+  async documentAccessRulesChanged(input: { documentId: string }) {
+    await postInternal("/internal/events/document-access-rules-changed", {
+      documentId: input.documentId,
+      emittedAt: new Date().toISOString(),
+    });
+  },
+
   async documentCommentChanged(input: {
     documentId: string;
     action: "created" | "updated" | "resolved" | "deleted";

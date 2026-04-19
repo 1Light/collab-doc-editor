@@ -202,7 +202,11 @@ export const jobController = {
       res.flushHeaders?.();
 
       const abortController = new AbortController();
-      req.on("close", () => abortController.abort());
+      res.on("close", () => {
+        if (!res.writableEnded) {
+          abortController.abort();
+        }
+      });
 
       writeSse(res, "meta", { jobId });
 

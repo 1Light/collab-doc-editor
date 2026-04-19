@@ -81,15 +81,15 @@ export function AppHeader({
 
   return (
     <div className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/85 backdrop-blur-xl">
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
-        <div className="flex min-w-0 items-center gap-4">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-slate-950 text-sm font-semibold tracking-wide text-white shadow-sm shadow-slate-950/15">
+      <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-950 text-xs font-semibold tracking-wide text-white shadow-sm shadow-slate-950/15">
             CE
           </div>
 
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <div className="truncate text-base font-semibold tracking-tight text-slate-950">
+              <div className="truncate text-sm font-semibold tracking-tight text-slate-950 sm:text-base">
                 {headerTitle}
               </div>
               {inAdmin ? (
@@ -99,11 +99,11 @@ export function AppHeader({
               ) : null}
             </div>
 
-            <div className="mt-0.5 truncate text-sm text-slate-600">{headerSubtitle}</div>
+            <div className="mt-0.5 truncate text-xs text-slate-600 sm:text-sm">{headerSubtitle}</div>
           </div>
         </div>
 
-        <div className="flex shrink-0 items-center gap-3">
+        <div className="flex shrink-0 items-center gap-2.5">
           {isAdmin && (
             <Button
               variant={inAdmin ? "primary" : "secondary"}
@@ -120,10 +120,10 @@ export function AppHeader({
               <button
                 type="button"
                 onClick={() => setMenuOpen((o) => !o)}
-                className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-2.5 py-2 shadow-sm transition-all duration-150 hover:border-slate-300 hover:bg-slate-50 hover:shadow-md"
+                className="flex items-center gap-2.5 rounded-2xl border border-slate-200 bg-white px-2.5 py-1.5 shadow-sm transition-all duration-150 hover:border-slate-300 hover:bg-slate-50 hover:shadow-md"
               >
                 <div
-                  className="flex h-9 w-9 items-center justify-center rounded-full text-xs font-semibold shadow-sm"
+                  className="flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold shadow-sm"
                   style={{ backgroundColor: avatarBg, color: avatarFg }}
                 >
                   {initials(userLabel)}
@@ -131,7 +131,7 @@ export function AppHeader({
 
                 <div className="hidden min-w-0 text-left sm:block">
                   <div className="truncate text-sm font-semibold text-slate-900">{userLabel}</div>
-                    <div className="mt-1">
+                    <div className="mt-0.5">
                     {isAdmin ? (
                       <Badge variant="neutral" size="sm">
                         {roleLabel(me.orgRole)}

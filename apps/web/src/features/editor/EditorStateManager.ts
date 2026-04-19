@@ -441,7 +441,7 @@ export class EditorStateManager {
         ydocGuid: this.ydoc.guid,
       });
 
-    return [
+    const extensions = [
       ...tiptapExtensions,
 
       Collaboration.configure({
@@ -460,9 +460,26 @@ export class EditorStateManager {
             userId: user.id ?? "unknown",
             name: user.name,
             color: user.color,
-          }),
+        }),
       }),
     ];
+
+    const seen = new Set<string>();
+
+    return [...extensions].reverse().filter((ext: any) => {
+      const name =
+        typeof ext?.name === "string"
+          ? ext.name
+          : typeof ext?.config?.name === "string"
+            ? ext.config.name
+            : null;
+
+      if (!name) return true;
+      if (seen.has(name)) return false;
+
+      seen.add(name);
+      return true;
+    }).reverse();
   }
 
   private requestSync() {

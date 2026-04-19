@@ -695,6 +695,10 @@ export const documentController = {
           userId: principalId,
           role,
         });
+      } else {
+        await realtimeNotifyService.documentAccessRulesChanged({
+          documentId,
+        });
       }
 
       return res.json({ updated: true, id: updated.id });
@@ -803,6 +807,10 @@ export const documentController = {
           documentId,
           userId: principalId,
           role: "Viewer",
+        });
+      } else if (principalType === "link" && deleted) {
+        await realtimeNotifyService.documentAccessRulesChanged({
+          documentId,
         });
       }
 
