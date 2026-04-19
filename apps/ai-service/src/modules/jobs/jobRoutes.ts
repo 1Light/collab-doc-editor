@@ -10,5 +10,6 @@ const router = Router();
  * Body: { jobId, operation, selectedText, parameters? }
  */
 router.post("/run", jobController.run);
+router.post("/stream", jobController.stream);
 
 export default router;

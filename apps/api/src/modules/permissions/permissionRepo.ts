@@ -15,7 +15,7 @@ export const permissionRepo = {
     principalType: PrincipalType;
     principalId: string;
     role: DocumentRole;
-    grantedById?: string | null; // optional if you added it
+    grantedById?: string | null;
   }) {
     return prisma.documentPermission.upsert({
       where: {
@@ -39,7 +39,7 @@ export const permissionRepo = {
     });
   },
 
-  // Keep create if other code still calls it (but prefer upsert)
+  // Kept for callers that still need direct create semantics.
   async create(data: {
     documentId: string;
     principalType: PrincipalType;
@@ -116,11 +116,11 @@ export const permissionRepo = {
       principalId: p.principalId,
       role: p.role as unknown as DocumentRole,
       createdAt: p.createdAt,
-      // present only if you added these fields in schema
+      // These fields are nullable in the current schema and safe to expose in the UI.
       updatedAt: (p as any).updatedAt ?? null,
       grantedById: (p as any).grantedById ?? null,
 
-      // UI join
+      // Joined user details for user-scoped permissions.
       user: p.principalType === "user" ? userMap.get(p.principalId) ?? null : null,
     }));
   },

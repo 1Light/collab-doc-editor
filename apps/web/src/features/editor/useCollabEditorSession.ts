@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Editor as TiptapEditor } from "@tiptap/react";
 
 import { getMyRole } from "../documents/api";
@@ -62,7 +62,7 @@ export function useCollabEditorSession({
   const roleRefreshInFlightRef = useRef(false);
   const roleRefreshQueuedRef = useRef(false);
 
-  const refreshRoleNow = async (docId: string) => {
+  const refreshRoleNow = useCallback(async (docId: string) => {
     if (roleRefreshInFlightRef.current) {
       roleRefreshQueuedRef.current = true;
       return;
@@ -90,7 +90,7 @@ export function useCollabEditorSession({
         void refreshRoleNow(docId);
       }
     }
-  };
+  }, [editorRef, isConnectedRef, loadingRef, setDocRole]);
 
   useEffect(() => {
     setPresenceUsers([]);
@@ -245,6 +245,7 @@ export function useCollabEditorSession({
     documentId,
     me.id,
     me.name,
+    refreshRoleNow,
     selectionRef,
     setBanner,
     setDocRole,

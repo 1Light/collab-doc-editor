@@ -1,4 +1,4 @@
-// apps/api/src/routes/adminRoutes.ts
+// apps/api/src/modules/admin/adminRoutes.ts
 import { Router } from "express";
 import { adminController } from "./adminController";
 import authMiddleware from "../../middleware/authMiddleware";

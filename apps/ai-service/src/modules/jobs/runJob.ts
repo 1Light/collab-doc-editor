@@ -86,3 +86,42 @@ export async function runJob(input: RunJobInput): Promise<{ result: string }> {
 
   return { result: result.result };
 }
+
+export async function streamJob(
+  input: RunJobInput & {
+    signal?: AbortSignal;
+    onChunk: (chunk: string) => void | Promise<void>;
+  }
+): Promise<{ result: string; prompt?: string; model?: string }> {
+  const provider = getProvider();
+
+  const prompt = buildPrompt(input.operation, {
+    selectedText: input.selectedText,
+    style: input.parameters?.style,
+    summaryStyle: input.parameters?.summaryStyle,
+    language: input.parameters?.language,
+    formatStyle: input.parameters?.formatStyle,
+  });
+
+  const result = await provider.stream({
+    operation: input.operation,
+    selectedText: input.selectedText,
+    prompt,
+    parameters: input.parameters,
+    signal: input.signal,
+    onChunk: input.onChunk,
+  });
+
+  if (!result?.result || typeof result.result !== "string") {
+    throw apiError(
+      ERROR_CODES.AI_PROVIDER_UNAVAILABLE,
+      "Provider returned invalid streamed response"
+    );
+  }
+
+  return {
+    result: result.result,
+    prompt: result.prompt ?? prompt,
+    model: result.model,
+  };
+}

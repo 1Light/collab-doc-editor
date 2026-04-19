@@ -19,11 +19,18 @@ function initials(name?: string) {
   return (a + b).toUpperCase();
 }
 
+function roleLabel(role: OrgRole) {
+  if (role === "OrgOwner") return "OrgOwner";
+  if (role === "OrgAdmin") return "OrgAdmin";
+  return "Member";
+}
+
 type Props = {
   me: MeUser | null;
   isAdmin: boolean;
   isOrgOwner: boolean;
   inAdmin: boolean;
+  onOpenOrganizations: () => void;
   onToggleAdmin: () => void;
   onDeleteAccount: () => void;
   onLogout: () => void;
@@ -34,6 +41,7 @@ export function AppHeader({
   isAdmin,
   isOrgOwner,
   inAdmin,
+  onOpenOrganizations,
   onToggleAdmin,
   onDeleteAccount,
   onLogout,
@@ -123,8 +131,14 @@ export function AppHeader({
 
                 <div className="hidden min-w-0 text-left sm:block">
                   <div className="truncate text-sm font-semibold text-slate-900">{userLabel}</div>
-                  <div className="mt-1">
-                    {isAdmin ? <Badge variant="neutral" size="sm">{me.orgRole}</Badge> : <span className="text-xs text-slate-500">Member</span>}
+                    <div className="mt-1">
+                    {isAdmin ? (
+                      <Badge variant="neutral" size="sm">
+                        {roleLabel(me.orgRole)}
+                      </Badge>
+                    ) : (
+                      <span className="text-xs text-slate-500">Member</span>
+                    )}
                   </div>
                 </div>
 
@@ -163,7 +177,7 @@ export function AppHeader({
 
                     <div className="mt-3">
                       <Badge variant="neutral" size="sm">
-                        {me.orgRole}
+                        {roleLabel(me.orgRole)}
                       </Badge>
                     </div>
                   </div>
@@ -171,7 +185,21 @@ export function AppHeader({
                   <div className="mt-1 space-y-1">
                     <button
                       type="button"
-                      onClick={onDeleteAccount}
+                      onClick={() => {
+                        setMenuOpen(false);
+                        onOpenOrganizations();
+                      }}
+                      className="w-full rounded-2xl px-4 py-3 text-left text-sm font-medium text-slate-700 transition-colors duration-150 hover:bg-slate-100"
+                    >
+                      Organizations
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        onDeleteAccount();
+                      }}
                       disabled={isOrgOwner}
                       className="flex w-full items-center justify-between rounded-2xl px-4 py-3 text-left text-sm font-medium text-red-600 transition-colors duration-150 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
                     >
@@ -183,7 +211,10 @@ export function AppHeader({
 
                     <button
                       type="button"
-                      onClick={onLogout}
+                      onClick={() => {
+                        setMenuOpen(false);
+                        onLogout();
+                      }}
                       className="w-full rounded-2xl px-4 py-3 text-left text-sm font-medium text-slate-700 transition-colors duration-150 hover:bg-slate-100"
                     >
                       Logout

@@ -33,8 +33,16 @@ export interface LLMRunParams {
 
 export interface LLMRunResult {
   result: string;
+  prompt?: string;
+  model?: string;
+}
+
+export interface LLMStreamParams extends LLMRunParams {
+  signal?: AbortSignal;
+  onChunk: (chunk: string) => void | Promise<void>;
 }
 
 export interface LLMProvider {
   run(params: LLMRunParams): Promise<LLMRunResult>;
+  stream(params: LLMStreamParams): Promise<LLMRunResult>;
 }

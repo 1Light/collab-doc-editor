@@ -140,17 +140,6 @@ export const documentController = {
       const documentId = req.params.id;
       const { content } = req.body as { content?: unknown };
 
-      console.log(
-        "[documents:update] user",
-        req.authUser.id,
-        "doc",
-        documentId,
-        "contentType",
-        typeof content,
-        "len",
-        typeof content === "string" ? content.length : "n/a"
-      );
-
       if (typeof content !== "string") {
         throw {
           code: ERROR_CODES.INVALID_REQUEST,
@@ -181,15 +170,6 @@ export const documentController = {
         authorId: req.authUser.id,
         reason: "manual_save",
       });
-
-      console.log(
-        "[documents:update] saved head",
-        version.id,
-        "docUpdatedAt",
-        (document as any).updatedAt?.toISOString?.() ?? (document as any).updatedAt,
-        "docContentLen",
-        typeof (document as any).content === "string" ? (document as any).content.length : "n/a"
-      );
 
       return res.json({
         id: document.id,

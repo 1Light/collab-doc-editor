@@ -1,6 +1,6 @@
-// apps/web/src/pages/Admin.tsx
+// apps/web/src/features/admin/pages/Admin.tsx
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   createOrgInvite,
   getAIPolicy,
@@ -16,6 +16,7 @@ import {
 } from "../../../features/admin/api";
 
 import { Card } from "../../../components/ui/Card";
+import { connectSocket } from "../../../features/realtime/socket";
 
 import { AdminOverview } from "./admin/AdminOverview";
 import { AdminAIPolicy } from "./admin/AdminAIPolicy";
@@ -32,6 +33,13 @@ function cx(...parts: Array<string | false | null | undefined>) {
   return parts.filter(Boolean).join(" ");
 }
 
+function getOrgId(): string | null {
+  const raw = localStorage.getItem("orgId");
+  if (!raw) return null;
+  const trimmed = raw.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
 export function AdminPage({ onBack: _onBack }: Props) {
   const [section, setSection] = useState<AdminSection>("overview");
 
@@ -46,7 +54,7 @@ export function AdminPage({ onBack: _onBack }: Props) {
     [users]
   );
 
-  async function loadBase() {
+  const loadBase = useCallback(async () => {
     setError(null);
     try {
       const [p, u, i] = await Promise.all([getAIPolicy(), listUsers(), listOrgInvites()]);
@@ -56,11 +64,40 @@ export function AdminPage({ onBack: _onBack }: Props) {
     } catch (e: any) {
       setError(e?.message ?? "Failed to load admin data");
     }
-  }
+  }, []);
 
   useEffect(() => {
-    loadBase();
-  }, []);
+    void loadBase();
+  }, [loadBase]);
+
+  useEffect(() => {
+    const s = connectSocket();
+
+    const joinOrgRoom = () => {
+      const orgId = getOrgId();
+      if (!orgId) return;
+      s.emit("org:join", { orgId });
+    };
+
+    const onOrgDataChanged = (payload: { orgId?: string | null } | null | undefined) => {
+      const activeOrgId = getOrgId();
+      if (!activeOrgId) return;
+      if (payload?.orgId && payload.orgId !== activeOrgId) return;
+      void loadBase();
+    };
+
+    s.on("connect", joinOrgRoom);
+    s.on("admin:orgDataChanged", onOrgDataChanged);
+
+    if (s.connected) {
+      joinOrgRoom();
+    }
+
+    return () => {
+      s.off("connect", joinOrgRoom);
+      s.off("admin:orgDataChanged", onOrgDataChanged);
+    };
+  }, [loadBase]);
 
   async function savePolicy(input: {
     enabledRoles: Array<"Editor" | "Owner">;

@@ -367,6 +367,9 @@ export function AdminAuditLogs() {
   const { from, to } = useMemo(() => {
     return computePresetRange(timePreset, customFrom, customTo);
   }, [timePreset, customFrom, customTo]);
+  const fromKey = from ?? "";
+  const toKey = to ?? "";
+  const logActionTypesKey = logActionTypes.join(",");
 
   async function loadLogs(initial: boolean) {
     const res = await listAuditLogsV2({
@@ -430,7 +433,7 @@ export function AdminAuditLogs() {
     setLogHasMore(false);
     void loadLogs(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, logQ, from ?? "", to ?? "", logRiskOnly, logActionTypes.join(",")]);
+  }, [activeTab, logQ, fromKey, toKey, logRiskOnly, logActionTypesKey]);
 
   const subscribedRef = useRef(false);
   useEffect(() => {
@@ -501,7 +504,7 @@ export function AdminAuditLogs() {
       s.off("disconnect", onDisconnect);
       s.off("admin:auditLogCreated", onAuditLogCreated);
     };
-  }, [activeTab, logQ, from ?? "", to ?? "", logRiskOnly, logActionTypes.join(",")]);
+  }, [activeTab, logQ, from, to, fromKey, toKey, logRiskOnly, logActionTypes, logActionTypesKey]);
 
   return (
     <Card className="overflow-hidden">

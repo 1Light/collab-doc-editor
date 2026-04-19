@@ -136,7 +136,7 @@ export function AdminMembers({
 
   const currentUserId = useMemo(() => getCurrentUserId(), []);
   const orgAdminCount = useMemo(() => users.filter((u) => u.orgRole === "OrgAdmin").length, [users]);
-  const orgOwnerCount = useMemo(() => users.filter((u) => u.orgRole === "OrgOwner").length, [users]);
+  const _orgOwnerCount = useMemo(() => users.filter((u) => u.orgRole === "OrgOwner").length, [users]);
   const selectedUser = useMemo(() => users.find((u) => u.id === selectedUserId) ?? null, [users, selectedUserId]);
 
   const effectiveInvites = useMemo(() => localInvites, [localInvites]);

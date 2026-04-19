@@ -31,6 +31,11 @@ type CreateJobParams = {
   };
 };
 
+type StreamJobParams = CreateJobParams & {
+  signal?: AbortSignal;
+  onChunk: (chunk: string) => void | Promise<void>;
+};
+
 type ApplyJobParams = {
   jobId: string;
   requesterId: string;
@@ -97,6 +102,134 @@ async function callAIServiceRunJob(payload: {
   }
 
   return { result: data.result };
+}
+
+async function callAIServiceStreamJob(payload: {
+  jobId: string;
+  operation: AIOperation;
+  selectedText: string;
+  parameters?: Record<string, unknown>;
+  signal?: AbortSignal;
+  onChunk: (chunk: string) => void | Promise<void>;
+}): Promise<{ result: string; prompt?: string; model?: string }> {
+  const url = `${config.AI_SERVICE_URL}/jobs/stream`;
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        jobId: payload.jobId,
+        operation: payload.operation,
+        selectedText: payload.selectedText,
+        parameters: payload.parameters,
+      }),
+      signal: payload.signal,
+    });
+  } catch {
+    throw apiError(ERROR_CODES.AI_PROVIDER_UNAVAILABLE, "AI service unavailable", {
+      reason: "network",
+    });
+  }
+
+  if (!res.ok || !res.body) {
+    const text = await res.text().catch(() => "");
+    throw apiError(ERROR_CODES.AI_PROVIDER_UNAVAILABLE, "AI service error", {
+      reason: res.status === 502 || res.status === 503 ? "unreachable" : "upstream_error",
+      status: res.status,
+      body: text,
+    });
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+
+  let buffer = "";
+  let result = "";
+  let prompt: string | undefined;
+  let model: string | undefined;
+  let activeEvent = "message";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+
+    while (true) {
+      const boundary = buffer.indexOf("\n\n");
+      if (boundary < 0) break;
+
+      const block = buffer.slice(0, boundary);
+      buffer = buffer.slice(boundary + 2);
+
+      const lines = block
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean);
+
+      if (lines.length === 0) continue;
+
+      let dataLine = "";
+      activeEvent = "message";
+
+      for (const line of lines) {
+        if (line.startsWith("event:")) {
+          activeEvent = line.slice("event:".length).trim();
+        } else if (line.startsWith("data:")) {
+          dataLine += line.slice("data:".length).trim();
+        }
+      }
+
+      if (!dataLine) continue;
+
+      let parsed: any = null;
+      try {
+        parsed = JSON.parse(dataLine);
+      } catch {
+        continue;
+      }
+
+      if (activeEvent === "chunk") {
+        const chunk = typeof parsed?.chunk === "string" ? parsed.chunk : "";
+        if (!chunk) continue;
+        result += chunk;
+        await payload.onChunk(chunk);
+        continue;
+      }
+
+      if (activeEvent === "done") {
+        prompt = typeof parsed?.prompt === "string" ? parsed.prompt : undefined;
+        model = typeof parsed?.model === "string" ? parsed.model : undefined;
+        result = typeof parsed?.result === "string" ? parsed.result : result;
+        continue;
+      }
+
+      if (activeEvent === "error") {
+        throw apiError(
+          typeof parsed?.code === "string"
+            ? (parsed.code as (typeof ERROR_CODES)[keyof typeof ERROR_CODES])
+            : ERROR_CODES.AI_PROVIDER_UNAVAILABLE,
+          typeof parsed?.message === "string" ? parsed.message : "AI provider unavailable"
+        );
+      }
+    }
+  }
+
+  if (!result.trim()) {
+    throw apiError(ERROR_CODES.AI_PROVIDER_UNAVAILABLE, "AI service returned empty response", {
+      reason: "upstream_error",
+    });
+  }
+
+  return {
+    result,
+    prompt,
+    model,
+  };
 }
 
 function normalizeRequestedSelection(selection: {
@@ -419,6 +552,163 @@ export const aiJobService = {
     return job;
   },
 
+  async streamJob(params: StreamJobParams) {
+    const doc = await documentRepo.findById(params.documentId);
+    if (!doc) throw apiError(ERROR_CODES.NOT_FOUND, "Document not found");
+
+    const role = await permissionService.resolveEffectiveRole({
+      documentId: params.documentId,
+      userId: params.requesterId,
+    });
+    if (!role) throw apiError(ERROR_CODES.FORBIDDEN, "No access to this document");
+
+    const allowedToInvoke: DocumentRole[] = ["Editor", "Owner"];
+    if (!allowedToInvoke.includes(role)) {
+      throw apiError(ERROR_CODES.FORBIDDEN, "Insufficient role to invoke AI");
+    }
+
+    await aiPolicyService.enforceAtJobCreation({
+      documentRole: role,
+      userId: params.requesterId,
+    });
+
+    const normalizedSelection = normalizeRequestedSelection(params.selection);
+    const normalizedParameters = normalizeParameters(params.operation, params.parameters);
+    const selectedText = normalizedSelection.text;
+
+    const persistedParameters = {
+      ...normalizedParameters,
+      selectionText: selectedText,
+    };
+
+    const job = await aiJobRepo.create({
+      documentId: doc.id,
+      userId: params.requesterId,
+      operation: mapOperationToPrisma(params.operation),
+      selectionStart: normalizedSelection.start,
+      selectionEnd: normalizedSelection.end,
+      parameters: persistedParameters,
+      basedOnVersionId: doc.headVersionId ?? null,
+    });
+
+    await aiJobRepo.updateStatus(job.id, AIJobStatus.running, {
+      parameters: persistedParameters,
+    });
+
+    try {
+      const streamed = await callAIServiceStreamJob({
+        jobId: job.id,
+        operation: params.operation,
+        selectedText,
+        parameters: normalizedParameters,
+        signal: params.signal,
+        onChunk: params.onChunk,
+      });
+
+      const enrichedParameters = {
+        ...persistedParameters,
+        prompt: streamed.prompt ?? null,
+        model: streamed.model ?? null,
+      };
+
+      await aiJobRepo.updateStatus(job.id, AIJobStatus.succeeded, {
+        result: streamed.result,
+        parameters: enrichedParameters,
+      });
+
+      return {
+        jobId: job.id,
+        result: streamed.result,
+        prompt: streamed.prompt,
+        model: streamed.model,
+      };
+    } catch (err: any) {
+      await aiJobRepo.updateStatus(job.id, AIJobStatus.failed, {
+        errorMessage: err?.message ?? "AI job failed",
+      });
+      throw err;
+    }
+  },
+
+  async listHistory(documentId: string, requesterId: string) {
+    const role = await permissionService.resolveEffectiveRole({
+      documentId,
+      userId: requesterId,
+    });
+    if (!role) {
+      throw apiError(ERROR_CODES.FORBIDDEN, "No access to this document");
+    }
+
+    const jobs = await aiJobRepo.listByDocument(documentId);
+
+    return jobs.map((job) => {
+      const params =
+        job.parameters && typeof job.parameters === "object"
+          ? (job.parameters as Record<string, unknown>)
+          : {};
+
+      return {
+        jobId: job.id,
+        operation: job.operation,
+        status: job.status,
+        createdAt: job.createdAt.toISOString(),
+        author: {
+          id: job.user.id,
+          name: job.user.name,
+          email: job.user.email,
+        },
+        selection: {
+          start: job.selectionStart,
+          end: job.selectionEnd,
+          text: typeof params.selectionText === "string" ? params.selectionText : "",
+        },
+        prompt: typeof params.prompt === "string" ? params.prompt : null,
+        model: typeof params.model === "string" ? params.model : null,
+        parameters: params,
+        decisionStatus:
+          typeof params.aiDecisionStatus === "string" ? params.aiDecisionStatus : "pending",
+        result: job.result ?? null,
+        errorMessage: job.errorMessage ?? null,
+        acceptedAt: job.applications[0]?.createdAt?.toISOString?.() ?? null,
+        acceptedById: job.applications[0]?.appliedById ?? null,
+        finalText: job.applications[0]?.finalText ?? null,
+        applicationCount: job.applications.length,
+      };
+    });
+  },
+
+  async rejectJob(jobId: string, requesterId: string) {
+    const job = await aiJobRepo.findById(jobId);
+    if (!job) throw apiError(ERROR_CODES.NOT_FOUND, "AI job not found");
+
+    const role = await permissionService.resolveEffectiveRole({
+      documentId: job.documentId,
+      userId: requesterId,
+    });
+    if (!role) throw apiError(ERROR_CODES.FORBIDDEN, "No access to this AI job");
+
+    const existingParameters =
+      job.parameters && typeof job.parameters === "object"
+        ? (job.parameters as Record<string, unknown>)
+        : {};
+
+    await aiJobRepo.updateParameters(job.id, {
+      ...existingParameters,
+      aiDecisionStatus: "rejected",
+    });
+
+    await auditLogService.logAction({
+      userId: requesterId,
+      actionType: "AI_SUGGESTION_REJECTED",
+      documentId: job.documentId,
+      metadata: {
+        aiJobId: job.id,
+      },
+    });
+
+    return { ok: true };
+  },
+
   async applyJob(params: ApplyJobParams) {
     const job = await aiJobRepo.findById(params.jobId);
     if (!job) throw apiError(ERROR_CODES.NOT_FOUND, "AI job not found");
@@ -461,6 +751,7 @@ export const aiJobService = {
             applyMode?: ApplyMode;
             summaryStyle?: string;
             formatStyle?: string;
+            aiDecisionStatus?: string;
           })
         : {};
 
@@ -507,6 +798,11 @@ export const aiJobService = {
       appliedById: params.requesterId,
       finalText: normalizedFinalText,
       newVersionId: newVersion.id,
+    });
+
+    await aiJobRepo.updateParameters(job.id, {
+      ...jobParameters,
+      aiDecisionStatus: "accepted",
     });
 
     await auditLogService.logAction({

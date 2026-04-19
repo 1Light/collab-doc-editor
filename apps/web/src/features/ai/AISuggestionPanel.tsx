@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   applyAIJob,
-  createAIJob,
-  getAIJob,
+  rejectAIJob,
+  streamAIJob,
   type AIOperation,
   type AIJob,
 } from "../../features/ai/api";
@@ -104,7 +104,7 @@ const REFORMAT_OPTIONS: Array<{ value: ReformatStyle; label: string }> = [
 function clampPreview(text: string, max = 220) {
   const t = text ?? "";
   if (t.length <= max) return t;
-  return `${t.slice(0, Math.max(0, max - 1))}…`;
+  return `${t.slice(0, Math.max(0, max - 1))}...`;
 }
 
 function normalizeWhitespace(text: string) {
@@ -184,8 +184,28 @@ function shouldNormalizeAsBullets(
   );
 }
 
-function isConflictError(err: any) {
-  return err?.status === 409 || err?.code === "CONFLICT";
+function getErrorMessage(err: unknown, fallback: string) {
+  if (err instanceof Error && err.message.trim()) {
+    return err.message;
+  }
+
+  if (typeof err === "object" && err !== null && "message" in err) {
+    const message = (err as { message?: unknown }).message;
+    if (typeof message === "string" && message.trim()) {
+      return message;
+    }
+  }
+
+  return fallback;
+}
+
+function isConflictError(err: unknown) {
+  if (typeof err !== "object" || err === null) {
+    return false;
+  }
+
+  const candidate = err as { status?: unknown; code?: unknown };
+  return candidate.status === 409 || candidate.code === "CONFLICT";
 }
 
 export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
@@ -202,8 +222,9 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
   const [noticeKind, setNoticeKind] = useState<NoticeKind>("info");
   const [finalText, setFinalText] = useState("");
 
-  const pollTimerRef = useRef<number | null>(null);
   const frozenSelectionRef = useRef<FrozenSelection | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const modeRef = useRef<Mode>("idle");
 
   const selectionLen = useMemo(
     () => Math.max(0, (selection?.end ?? 0) - (selection?.start ?? 0)),
@@ -243,13 +264,6 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
     return "Apply will replace the selected text.";
   }, [activeOp.applyMode]);
 
-  function clearPollTimer() {
-    if (pollTimerRef.current != null) {
-      window.clearInterval(pollTimerRef.current);
-      pollTimerRef.current = null;
-    }
-  }
-
   function normalizeSuggestionText(raw: string) {
     const text = normalizeWhitespace(raw);
 
@@ -261,58 +275,13 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
   }
 
   useEffect(() => {
-    if (mode === "idle") return;
-    reset();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selection.start, selection.end, selection.text, selection.pmFrom, selection.pmTo]);
+    modeRef.current = mode;
+  }, [mode]);
 
   useEffect(() => {
-    if (!job) return;
-
-    const shouldPoll = job.status === "queued" || job.status === "running";
-    if (!shouldPoll) {
-      clearPollTimer();
-      return;
-    }
-
-    setMode("running");
-
-    if (pollTimerRef.current != null) return;
-
-    pollTimerRef.current = window.setInterval(async () => {
-      try {
-        const latest = await getAIJob(job.jobId);
-        setJob(latest);
-
-        if (latest.status === "succeeded") {
-          setFinalText(normalizeSuggestionText(latest.result ?? ""));
-          setError(null);
-          setNoticeKind("info");
-          setMode("ready");
-          clearPollTimer();
-          return;
-        }
-
-        if (latest.status === "failed") {
-          setError(latest.error?.message ?? "AI job failed");
-          setNoticeKind("error");
-          setMode("error");
-          clearPollTimer();
-          return;
-        }
-      } catch (e: any) {
-        setError(e?.message ?? "Failed to poll AI job");
-        setNoticeKind("error");
-        setMode("error");
-        clearPollTimer();
-      }
-    }, 900);
-
-    return () => {
-      clearPollTimer();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [job?.jobId, job?.status]);
+    if (modeRef.current === "idle") return;
+    reset();
+  }, [selection.start, selection.end, selection.text, selection.pmFrom, selection.pmTo]);
 
   async function run() {
     if (!canRun || isRunning) return;
@@ -326,8 +295,11 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
     };
 
     frozenSelectionRef.current = targetSelection;
+    abortControllerRef.current?.abort();
 
-    clearPollTimer();
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+
     setError(null);
     setNoticeKind("info");
     setMode("running");
@@ -335,41 +307,58 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
     setFinalText("");
 
     try {
-      const created = await createAIJob({
-        documentId,
-        operation,
-        selection: {
-          start: targetSelection.start,
-          end: targetSelection.end,
-          text: targetSelection.text,
+      const done = await streamAIJob(
+        {
+          documentId,
+          operation,
+          selection: {
+            start: targetSelection.start,
+            end: targetSelection.end,
+            text: targetSelection.text,
+          },
+          parameters: {
+            ...(operation === "enhance" ? { style: enhanceStyle } : {}),
+            ...(operation === "summarize" ? { summaryStyle } : {}),
+            ...(operation === "translate" ? { language: effectiveLanguage } : {}),
+            ...(operation === "reformat" ? { formatStyle: reformatStyle } : {}),
+            applyMode: activeOp.applyMode,
+          },
         },
-        parameters: {
-          ...(operation === "enhance" ? { style: enhanceStyle } : {}),
-          ...(operation === "summarize" ? { summaryStyle } : {}),
-          ...(operation === "translate" ? { language: effectiveLanguage } : {}),
-          ...(operation === "reformat" ? { formatStyle: reformatStyle } : {}),
-          applyMode: activeOp.applyMode,
-        },
+        {
+          signal: abortController.signal,
+          onChunk: (chunk) => {
+            setFinalText((prev) => `${prev}${chunk}`);
+          },
+        }
+      );
+
+      const normalized = normalizeSuggestionText(done.result ?? "");
+      setJob({
+        jobId: done.jobId,
+        status: "succeeded",
+        result: normalized,
+        createdAt: new Date().toISOString(),
       });
-
-      setJob(created);
-
-      if (created.status === "succeeded") {
-        setFinalText(normalizeSuggestionText(created.result ?? ""));
-        setError(null);
+      setFinalText(normalized);
+      setMode("ready");
+      setNoticeKind("info");
+      setError(null);
+    } catch (e: unknown) {
+      const message = getErrorMessage(e, "Failed to stream AI job");
+      const errorName =
+        typeof e === "object" && e !== null && "name" in e
+          ? String((e as { name?: unknown }).name ?? "")
+          : "";
+      if (errorName === "AbortError" || String(message).toLowerCase().includes("aborted")) {
         setNoticeKind("info");
-        setMode("ready");
-      } else if (created.status === "failed") {
-        setError(created.error?.message ?? "AI job failed");
-        setNoticeKind("error");
-        setMode("error");
+        setError("Generation cancelled. Partial output was kept so you can review or reuse it.");
       } else {
-        setMode("running");
+        setNoticeKind("error");
+        setError(message);
       }
-    } catch (e: any) {
-      setError(e?.message ?? "Failed to create AI job");
-      setNoticeKind("error");
       setMode("error");
+    } finally {
+      abortControllerRef.current = null;
     }
   }
 
@@ -399,22 +388,23 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
         targetSelection,
       });
 
-      clearPollTimer();
       setJob(null);
       setMode("idle");
       setError(null);
       setNoticeKind("info");
       setFinalText("");
       frozenSelectionRef.current = null;
-    } catch (e: any) {
+    } catch (e: unknown) {
       if (isConflictError(e)) {
         setError(
-          e?.message ??
+          getErrorMessage(
+            e,
             "This suggestion is outdated because the document changed. Review it, copy anything you want, or generate a new suggestion."
+          )
         );
         setNoticeKind("conflict");
       } else {
-        setError(e?.message ?? "Failed to apply suggestion");
+        setError(getErrorMessage(e, "Failed to apply suggestion"));
         setNoticeKind("error");
       }
 
@@ -428,13 +418,30 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
   }
 
   function reset() {
-    clearPollTimer();
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = null;
     setError(null);
     setNoticeKind("info");
     setJob(null);
     setMode("idle");
     setFinalText("");
     frozenSelectionRef.current = null;
+  }
+
+  async function rejectCurrent() {
+    if (job && mode === "ready") {
+      try {
+        await rejectAIJob(job.jobId);
+      } catch {
+        // ignore reject tracking failures in the UI
+      }
+    }
+
+    reset();
+  }
+
+  function cancelGeneration() {
+    abortControllerRef.current?.abort();
   }
 
   return (
@@ -462,13 +469,13 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
               }
             >
               {mode === "running"
-                ? "Running"
+                ? "Streaming"
                 : mode === "ready"
                   ? "Ready"
                   : mode === "error" && noticeKind === "conflict"
                     ? "Outdated"
                     : mode === "error"
-                      ? "Error"
+                      ? "Stopped"
                       : "Idle"}
             </Badge>
           </div>
@@ -494,13 +501,11 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
             </div>
           </div>
 
-          {canRun && (selection.text?.length ?? 0) > selectionPreview.length ? (
-            <div className="mt-2 text-xs text-slate-500">Preview is truncated for readability.</div>
-          ) : (
-            <div className="mt-2 text-xs text-slate-500">
-              Tip: shorter selections usually produce better results.
-            </div>
-          )}
+          <div className="mt-2 text-xs text-slate-500">
+            {canRun && (selection.text?.length ?? 0) > selectionPreview.length
+              ? "Preview is truncated for readability."
+              : "Tip: shorter selections usually produce better results."}
+          </div>
         </div>
 
         <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -508,11 +513,7 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
             <label className="block text-xs font-medium text-gray-700">Operation</label>
             <div className="mt-2">
               <select
-                className={[
-                  "w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-gray-900 shadow-sm",
-                  "focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2",
-                  "disabled:bg-gray-50 disabled:text-gray-500",
-                ].join(" ")}
+                className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:bg-gray-50 disabled:text-gray-500"
                 value={operation}
                 onChange={(e) => setOperation(e.target.value as AIOperation)}
                 disabled={isRunning}
@@ -532,11 +533,7 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
               <label className="block text-xs font-medium text-gray-700">Style</label>
               <div className="mt-2">
                 <select
-                  className={[
-                    "w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-gray-900 shadow-sm",
-                    "focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2",
-                    "disabled:bg-gray-50 disabled:text-gray-500",
-                  ].join(" ")}
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:bg-gray-50 disabled:text-gray-500"
                   value={enhanceStyle}
                   onChange={(e) => setEnhanceStyle(e.target.value as EnhanceStyle)}
                   disabled={isRunning}
@@ -548,9 +545,6 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
                   ))}
                 </select>
               </div>
-              <div className="mt-2 text-xs leading-relaxed text-slate-500">
-                Preserves meaning while improving wording.
-              </div>
             </div>
           )}
 
@@ -559,11 +553,7 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
               <label className="block text-xs font-medium text-gray-700">Summary style</label>
               <div className="mt-2">
                 <select
-                  className={[
-                    "w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-gray-900 shadow-sm",
-                    "focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2",
-                    "disabled:bg-gray-50 disabled:text-gray-500",
-                  ].join(" ")}
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:bg-gray-50 disabled:text-gray-500"
                   value={summaryStyle}
                   onChange={(e) => setSummaryStyle(e.target.value as SummaryStyle)}
                   disabled={isRunning}
@@ -575,9 +565,6 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
                   ))}
                 </select>
               </div>
-              <div className="mt-2 text-xs leading-relaxed text-slate-500">
-                Summaries are inserted below the selected text by default.
-              </div>
             </div>
           )}
 
@@ -587,11 +574,7 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
                 <label className="block text-xs font-medium text-gray-700">Language</label>
                 <div className="mt-2">
                   <select
-                    className={[
-                      "w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-gray-900 shadow-sm",
-                      "focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2",
-                      "disabled:bg-gray-50 disabled:text-gray-500",
-                    ].join(" ")}
+                    className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:bg-gray-50 disabled:text-gray-500"
                     value={language}
                     onChange={(e) => setLanguage(e.target.value)}
                     disabled={isRunning}
@@ -617,9 +600,6 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
                     disabled={isRunning}
                   />
                 </div>
-                <div className="mt-2 text-xs leading-relaxed text-slate-500">
-                  If filled, this overrides the selected language.
-                </div>
               </div>
             </>
           )}
@@ -629,11 +609,7 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
               <label className="block text-xs font-medium text-gray-700">Target format</label>
               <div className="mt-2">
                 <select
-                  className={[
-                    "w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-gray-900 shadow-sm",
-                    "focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2",
-                    "disabled:bg-gray-50 disabled:text-gray-500",
-                  ].join(" ")}
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:bg-gray-50 disabled:text-gray-500"
                   value={reformatStyle}
                   onChange={(e) => setReformatStyle(e.target.value as ReformatStyle)}
                   disabled={isRunning}
@@ -644,9 +620,6 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
                     </option>
                   ))}
                 </select>
-              </div>
-              <div className="mt-2 text-xs leading-relaxed text-slate-500">
-                Changes structure and presentation while preserving meaning.
               </div>
             </div>
           )}
@@ -666,6 +639,16 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
             >
               {isRunning ? "Generating..." : "Generate"}
             </Button>
+
+            {isRunning && (
+              <Button
+                variant="danger"
+                onClick={cancelGeneration}
+                className="w-full sm:w-auto"
+              >
+                Cancel
+              </Button>
+            )}
 
             <Button
               variant="secondary"
@@ -691,20 +674,23 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
           <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div className="text-xs leading-relaxed text-gray-600">
               {mode === "idle" && "Ready when you are."}
-              {mode === "running" && "Working on it."}
-              {mode === "ready" && "Review, edit, then accept or reject."}
+              {mode === "running" && "Streaming suggestion as it is generated."}
+              {mode === "ready" && "Compare, edit if needed, then accept or reject."}
               {mode === "error" &&
                 noticeKind === "conflict" &&
                 "This suggestion is outdated because the document changed. You can still review it, copy from it, edit it, or generate a new one."}
               {mode === "error" &&
-                noticeKind !== "conflict" &&
+                noticeKind === "info" &&
+                "Generation stopped early. Partial output was preserved for reference."}
+              {mode === "error" &&
+                noticeKind === "error" &&
                 "Fix the issue and try again."}
             </div>
 
             {(mode === "ready" || mode === "error") && (
               <button
                 type="button"
-                onClick={reset}
+                onClick={() => void rejectCurrent()}
                 className="self-start text-xs font-medium text-gray-700 transition-colors hover:text-gray-900 sm:self-auto"
               >
                 {mode === "ready" ? "Reject" : "Dismiss"}
@@ -719,7 +705,7 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
             {mode === "ready" ? (
               <Badge variant="success">Editable</Badge>
             ) : mode === "running" ? (
-              <Badge variant="warning">Generating</Badge>
+              <Badge variant="warning">Streaming</Badge>
             ) : mode === "error" && noticeKind === "conflict" ? (
               <Badge variant="warning">Outdated but editable</Badge>
             ) : (
@@ -729,18 +715,13 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
 
           <div className="mt-2">
             <textarea
-              className={[
-                "w-full min-h-[160px] rounded-2xl border border-slate-200 bg-white p-3 text-sm text-gray-900 shadow-sm",
-                "placeholder:text-gray-400",
-                "focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2",
-                "disabled:bg-gray-50 disabled:text-gray-500",
-              ].join(" ")}
+              className="w-full min-h-[160px] rounded-2xl border border-slate-200 bg-white p-3 text-sm text-gray-900 shadow-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:bg-gray-50 disabled:text-gray-500"
               value={finalText}
               onChange={(e) => setFinalText(e.target.value)}
               placeholder={
                 canRun
                   ? mode === "running"
-                    ? "Generating suggestion..."
+                    ? "Streaming suggestion..."
                     : "Your generated suggestion will appear here."
                   : "Select text in the editor to generate a suggestion."
               }
@@ -754,16 +735,17 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
                 "mt-3 rounded-2xl p-3 text-sm",
                 noticeKind === "conflict"
                   ? "border border-amber-200 bg-amber-50 text-amber-900"
-                  : "border border-red-200 bg-red-50 text-red-800",
+                  : noticeKind === "info"
+                    ? "border border-blue-200 bg-blue-50 text-blue-900"
+                    : "border border-red-200 bg-red-50 text-red-800",
               ].join(" ")}
             >
-              <div
-                className={[
-                  "font-medium",
-                  noticeKind === "conflict" ? "text-amber-950" : "text-red-900",
-                ].join(" ")}
-              >
-                {noticeKind === "conflict" ? "Suggestion is outdated" : "Request failed"}
+              <div className="font-medium">
+                {noticeKind === "conflict"
+                  ? "Suggestion is outdated"
+                  : noticeKind === "info"
+                    ? "Generation cancelled"
+                    : "Request failed"}
               </div>
               <div className="mt-1">{error ?? "Something went wrong"}</div>
             </div>
@@ -775,6 +757,7 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
             </div>
           )}
         </div>
+
       </div>
     </Card>
   );

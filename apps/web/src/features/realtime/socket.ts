@@ -19,10 +19,16 @@ function getOrgId(): string | null {
 }
 
 type Unsub = () => void;
+type OwnedSocketHandlers = {
+  onConnect: () => void;
+  onDisconnect: (reason: string) => void;
+  onConnectError: (err: unknown) => void;
+};
 
 // lightweight lifecycle hooks so editor code can resync on reconnect
 const connectListeners = new Set<(s: Socket) => void>();
 const disconnectListeners = new Set<(reason: string) => void>();
+const ownedHandlers = new WeakMap<Socket, OwnedSocketHandlers>();
 
 export function onSocketConnected(cb: (s: Socket) => void): Unsub {
   connectListeners.add(cb);
@@ -66,7 +72,6 @@ export function getSocket(): Socket {
 
   // listeners owned by this module (so we can safely clean them up)
   const onConnect = () => {
-    // eslint-disable-next-line no-console
     console.log("[socket] connected:", socket?.id);
 
     // Join org room (orgId may have changed after handshake)
@@ -79,23 +84,23 @@ export function getSocket(): Socket {
   };
 
   const onDisconnect = (reason: string) => {
-    // eslint-disable-next-line no-console
     console.log("[socket] disconnected:", reason);
     emitDisconnected(reason);
   };
 
-  const onConnectError = (err: any) => {
-    const msg = String(err?.message ?? err);
+  const onConnectError = (err: unknown) => {
+    const msg =
+      typeof err === "object" && err !== null && "message" in err
+        ? String((err as { message?: unknown }).message ?? err)
+        : String(err);
 
     const ignorable =
       msg.includes("WebSocket is closed before the connection is established") ||
       msg.includes("transport close");
 
     if (!ignorable) {
-      // eslint-disable-next-line no-console
       console.error("[socket] connection error:", msg);
     } else {
-      // eslint-disable-next-line no-console
       console.warn("[socket] transient connect issue:", msg);
     }
   };
@@ -104,8 +109,7 @@ export function getSocket(): Socket {
   socket.on("disconnect", onDisconnect);
   socket.on("connect_error", onConnectError);
 
-  // stash refs so we can remove only our handlers
-  (socket as any).__ownedHandlers = { onConnect, onDisconnect, onConnectError };
+  ownedHandlers.set(socket, { onConnect, onDisconnect, onConnectError });
 
   return socket;
 }
@@ -126,18 +130,13 @@ export function disconnectSocket() {
   if (!socket) return;
 
   // Remove only the listeners this module registered
-  const owned = (socket as any).__ownedHandlers as
-    | {
-        onConnect: () => void;
-        onDisconnect: (reason: string) => void;
-        onConnectError: (err: any) => void;
-      }
-    | undefined;
+  const owned = ownedHandlers.get(socket);
 
   if (owned) {
     socket.off("connect", owned.onConnect);
     socket.off("disconnect", owned.onDisconnect);
     socket.off("connect_error", owned.onConnectError);
+    ownedHandlers.delete(socket);
   }
 
   socket.disconnect();
@@ -145,8 +144,7 @@ export function disconnectSocket() {
 }
 
 /**
- * If orgId changes at runtime (future org switch feature),
- * call this to re-join correct room.
+ * Re-join the current organization room after auth or organization context changes.
  */
 export function refreshOrgRoom() {
   const s = getSocket();
