@@ -103,11 +103,7 @@ export function PresenceLayer({ users, maxVisible = 4 }: Props) {
   const hiddenCount = Math.max(0, sortedLive.length - visible.length);
 
   if (sortedLive.length === 0) {
-   return (
-    <div className="hidden rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-500 shadow-sm sm:block">
-      No one else here
-    </div>
-   );
+    return null;
   }
 
   return (
