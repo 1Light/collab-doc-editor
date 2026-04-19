@@ -78,7 +78,8 @@ Documents owned by that user are transferred to the organization owner.
 The SRS did not fully define this case, and leaving it undefined could result in documents without owners.
 
 **Impact:**
-Prevents broken ownership and keeps the system consistent.
+Improvement: no orphaned documents, and ownership remains clear and consistent.
+Compromise: the organization owner may accumulate many transferred documents over time.
 
 ---
 
@@ -92,7 +93,7 @@ Organization management is now a visible and dedicated part of the user experien
 * view all their organizations
 * switch between organizations
 * leave organizations
-* create new organizations
+* create new organizations 
 
 **Why:**
 The SRS supported this concept, but it was not clearly exposed in the user interface.
@@ -110,8 +111,10 @@ Link-based sharing was expanded into a complete, consistent feature across the s
 **How it works:**
 
 * users can generate share links
+* links are usable only by authenticated members of the same organization
 * permissions are enforced like normal access
 * works in both API and realtime collaboration
+* link permission changes propagate to active sessions without requiring a manual refresh
 * still requires organization membership
 
 **Why:**
