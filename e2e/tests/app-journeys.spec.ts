@@ -20,9 +20,10 @@ const documentList = [
 
 async function seedAuthenticatedSession(page: Page, user = memberUser) {
   await page.addInitScript((seedUser) => {
-    window.localStorage.setItem("accessToken", "test-access-token");
-    window.localStorage.setItem("me", JSON.stringify(seedUser));
-    window.localStorage.setItem("orgId", seedUser.orgId ?? "");
+    const storage = (globalThis as typeof globalThis & { localStorage: Storage }).localStorage;
+    storage.setItem("accessToken", "test-access-token");
+    storage.setItem("me", JSON.stringify(seedUser));
+    storage.setItem("orgId", seedUser.orgId ?? "");
   }, user);
 }
 
@@ -175,10 +176,12 @@ async function mockEditorApi(page: Page) {
 }
 
 async function selectEditorText(page: Page, textToMatch: string, startOffset = 0, endOffset?: number) {
-  await page.waitForFunction(() => Boolean((window as any).__collabEditor));
+  await page.waitForFunction(() =>
+    Boolean((globalThis as typeof globalThis & { __collabEditor?: unknown }).__collabEditor)
+  );
   await page.evaluate(
     (payload) => {
-      const editor = (window as any).__collabEditor;
+      const editor = (globalThis as typeof globalThis & { __collabEditor?: any }).__collabEditor;
       if (!editor) {
         throw new Error("Editor instance not available");
       }

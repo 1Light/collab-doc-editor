@@ -104,6 +104,11 @@ vi.mock("../../src/lib/prisma", () => ({
 }));
 
 describe("Auth routes", () => {
+  function readSetCookieHeader(value: string | string[] | undefined) {
+    if (Array.isArray(value)) return value.join(";");
+    return value ?? "";
+  }
+
   beforeEach(() => {
     vi.clearAllMocks();
     mockSign.mockReturnValue("signed-token");
@@ -138,7 +143,7 @@ describe("Auth routes", () => {
     expect(res.status).toBe(200);
     expect(res.body.accessToken).toBe("signed-token");
     expect(res.body.expiresIn).toBe(20 * 60);
-    expect(res.headers["set-cookie"]?.join(";")).toContain("refreshToken=");
+    expect(readSetCookieHeader(res.headers["set-cookie"])).toContain("refreshToken=");
   });
 
   it("signs up with hashed password", async () => {
@@ -162,7 +167,7 @@ describe("Auth routes", () => {
     expect(res.status).toBe(201);
     expect(mockHash).toHaveBeenCalledWith("secret123", 10);
     expect(mockUserCreate).toHaveBeenCalled();
-    expect(res.headers["set-cookie"]?.join(";")).toContain("refreshToken=");
+    expect(readSetCookieHeader(res.headers["set-cookie"])).toContain("refreshToken=");
   });
 
   it("refreshes an access token from the refresh cookie", async () => {
@@ -186,7 +191,7 @@ describe("Auth routes", () => {
 
     expect(res.status).toBe(200);
     expect(res.body.accessToken).toBe("signed-token");
-    expect(res.headers["set-cookie"]?.join(";")).toContain("refreshToken=");
+    expect(readSetCookieHeader(res.headers["set-cookie"])).toContain("refreshToken=");
   });
 
   it("clears the refresh cookie on logout", async () => {
@@ -198,6 +203,6 @@ describe("Auth routes", () => {
       .set("Authorization", "Bearer fake-token");
 
     expect(res.status).toBe(200);
-    expect(res.headers["set-cookie"]?.join(";")).toContain("refreshToken=");
+    expect(readSetCookieHeader(res.headers["set-cookie"])).toContain("refreshToken=");
   });
 });
