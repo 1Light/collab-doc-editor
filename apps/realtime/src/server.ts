@@ -91,6 +91,30 @@ app.post("/internal/events/document-role-updated", requireInternalSecret, (req, 
 });
 
 /**
+ * Internal API: notify document-wide access rule changes so open sessions
+ * can refresh effective role without a manual reload.
+ * POST /internal/events/document-access-rules-changed
+ * Body: { documentId: string }
+ */
+app.post("/internal/events/document-access-rules-changed", requireInternalSecret, (req, res) => {
+  const { documentId } = (req.body ?? {}) as {
+    documentId?: string;
+  };
+
+  if (!documentId) {
+    return res.status(400).json({ error: "documentId is required" });
+  }
+
+  io.to(documentId).emit("document:role_updated", {
+    documentId,
+    userId: null,
+    role: null,
+  });
+
+  return res.json({ ok: true });
+});
+
+/**
  * Internal API: notify document comment mutation so active clients can refresh immediately.
  * POST /internal/events/document-comment-changed
  * Body:

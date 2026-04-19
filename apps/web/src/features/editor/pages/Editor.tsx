@@ -610,14 +610,14 @@ export function EditorPage({ documentId, onBack, onCurrentUserColorChange }: Pro
 
   const connectionBadge = (
    <span
-    className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${
+    className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ${
       isConnected
         ? "bg-green-100 text-green-700"
         : "bg-amber-100 text-amber-700"
     }`}
   >
     <span
-      className={`h-2 w-2 rounded-full ${
+      className={`h-1.5 w-1.5 rounded-full ${
         isConnected ? "bg-green-500" : "bg-amber-500"
       }`}
     />
@@ -627,7 +627,7 @@ export function EditorPage({ documentId, onBack, onCurrentUserColorChange }: Pro
 
   const saveBadge = (
     <span
-      className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${
+      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ${
         saveState === "saved"
           ? "bg-slate-100 text-slate-700"
           : saveState === "saving"
@@ -638,7 +638,7 @@ export function EditorPage({ documentId, onBack, onCurrentUserColorChange }: Pro
       }`}
     >
       <span
-        className={`h-2 w-2 rounded-full ${
+        className={`h-1.5 w-1.5 rounded-full ${
           saveState === "saved"
             ? "bg-slate-500"
             : saveState === "saving"
@@ -682,38 +682,31 @@ export function EditorPage({ documentId, onBack, onCurrentUserColorChange }: Pro
     );
   }, [collabExtensions, loading, isConnected, docRole]);
 
-   return (
+  return (
     <div className="min-h-screen bg-slate-100">
       <div className="sticky top-0 z-20 border-b border-slate-200 bg-white/90 shadow-sm backdrop-blur">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
-          <div className="flex min-w-0 items-center gap-3">
-            <Button variant="secondary" size="sm" onClick={onBack}>
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
+          <div className="flex min-w-0 items-center gap-4">
+            <Button variant="secondary" size="sm" onClick={onBack} className="rounded-2xl px-4 py-2">
               Back
             </Button>
 
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <h1 className="truncate text-base font-semibold text-slate-900 sm:text-lg">
+            <div className="min-w-0 space-y-1.5">
+              <div className="min-w-0 flex items-center gap-3">
+                <h1 className="truncate text-lg font-semibold tracking-tight text-slate-900 sm:text-xl">
                   {docTitle}
                 </h1>
-                <span className="hidden sm:inline-flex">{connectionBadge}</span>
-                <span className="hidden sm:inline-flex">{saveBadge}</span>
               </div>
-              <div className="mt-1 flex items-center gap-2 text-xs text-slate-500 sm:text-sm">
-                 <span>Signed in as {me.name}</span>
 
-                 {docRole && (
-                   <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
-                    {docRole}
-                   </span>
-                 )}
+              <div className="flex flex-wrap items-center gap-1.5">
+                {connectionBadge}
+                {saveBadge}
               </div>
             </div>
           </div>
 
           <div className="shrink-0">
             <div className="flex items-center gap-2">
-              <span className="sm:hidden">{saveBadge}</span>
               <PresenceLayer users={presenceUsers} />
             </div>
           </div>
