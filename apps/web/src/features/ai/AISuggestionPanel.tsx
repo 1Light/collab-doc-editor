@@ -38,7 +38,7 @@ type Props = {
 type Mode = "idle" | "running" | "ready" | "error";
 type NoticeKind = "info" | "error" | "conflict";
 
-type EnhanceStyle = "clearer" | "concise" | "professional" | "formal";
+type EnhanceStyle = "clearer" | "concise" | "professional";
 type SummaryStyle = "short_paragraph" | "bullet_points";
 type ReformatStyle =
   | "bullet_list"
@@ -84,7 +84,6 @@ const ENHANCE_OPTIONS: Array<{ value: EnhanceStyle; label: string }> = [
   { value: "clearer", label: "Clearer" },
   { value: "concise", label: "More concise" },
   { value: "professional", label: "More professional" },
-  { value: "formal", label: "More formal" },
 ];
 
 const SUMMARY_OPTIONS: Array<{ value: SummaryStyle; label: string }> = [
@@ -93,6 +92,7 @@ const SUMMARY_OPTIONS: Array<{ value: SummaryStyle; label: string }> = [
 ];
 
 const LANGUAGE_OPTIONS = ["Arabic", "English", "French", "Spanish", "German"];
+const MAX_CUSTOM_LANGUAGE_LENGTH = 60;
 
 const REFORMAT_OPTIONS: Array<{ value: ReformatStyle; label: string }> = [
   { value: "bullet_list", label: "Bullet list" },
@@ -109,6 +109,10 @@ function clampPreview(text: string, max = 220) {
 
 function normalizeWhitespace(text: string) {
   return text.replace(/\r\n/g, "\n").replace(/\t/g, "  ").trim();
+}
+
+function normalizeCustomLanguage(text: string) {
+  return text.replace(/\s+/g, " ").trim();
 }
 
 function dedupeBrokenTail(text: string) {
@@ -173,6 +177,27 @@ function cleanBulletOutput(text: string) {
   return dedupeBrokenTail(cleanedLines.join("\n")).trim();
 }
 
+function cleanStructuredNotesOutput(text: string) {
+  const normalized = normalizeWhitespace(text)
+    .replace(/\*\*(.*?)\*\*/g, "$1")
+    .replace(/__(.*?)__/g, "$1")
+    .replace(/^\s*#+\s*/gm, "")
+    .replace(/[ \t]+$/gm, "");
+
+  const lines = normalized
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      if (line.startsWith("- ") || line.startsWith("* ")) {
+        return `- ${line.replace(/^[-*]\s*/, "").trim()}`;
+      }
+      return line;
+    });
+
+  return dedupeBrokenTail(lines.join("\n")).trim();
+}
+
 function shouldNormalizeAsBullets(
   operation: AIOperation,
   summaryStyle: SummaryStyle,
@@ -221,12 +246,9 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [noticeKind, setNoticeKind] = useState<NoticeKind>("info");
   const [finalText, setFinalText] = useState("");
-  const [selectedDraftText, setSelectedDraftText] = useState("");
-
   const frozenSelectionRef = useRef<FrozenSelection | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const modeRef = useRef<Mode>("idle");
-  const suggestionRef = useRef<HTMLTextAreaElement | null>(null);
 
   const selectionLen = useMemo(
     () => Math.max(0, (selection?.end ?? 0) - (selection?.start ?? 0)),
@@ -237,6 +259,17 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
     () => (selection?.end ?? 0) > (selection?.start ?? 0),
     [selection?.start, selection?.end]
   );
+
+  const hasCustomLanguageInput = customLanguage.length > 0;
+  const normalizedCustomLanguage = useMemo(
+    () => normalizeCustomLanguage(customLanguage).slice(0, MAX_CUSTOM_LANGUAGE_LENGTH),
+    [customLanguage]
+  );
+  const customLanguageError = useMemo(() => {
+    if (operation !== "translate" || !hasCustomLanguageInput) return null;
+    if (!normalizedCustomLanguage) return "Custom language cannot be empty.";
+    return null;
+  }, [operation, hasCustomLanguageInput, normalizedCustomLanguage]);
 
   const selectionPreview = useMemo(() => {
     const t = selection?.text ?? "";
@@ -255,9 +288,9 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
     finalText.trim().length > 0;
 
   const effectiveLanguage = useMemo(() => {
-    const custom = customLanguage.trim();
+    const custom = normalizedCustomLanguage;
     return custom.length > 0 ? custom : language;
-  }, [customLanguage, language]);
+  }, [normalizedCustomLanguage, language]);
 
   const applyHint = useMemo(() => {
     if (activeOp.applyMode === "insert_below") {
@@ -271,6 +304,10 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
 
     if (shouldNormalizeAsBullets(operation, summaryStyle, reformatStyle)) {
       return cleanBulletOutput(text);
+    }
+
+    if (operation === "reformat" && reformatStyle === "structured_notes") {
+      return cleanStructuredNotesOutput(text);
     }
 
     return dedupeBrokenTail(text);
@@ -287,6 +324,11 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
 
   async function run() {
     if (!canRun || isRunning) return;
+    if (customLanguageError) {
+      setError(customLanguageError);
+      setNoticeKind("error");
+      return;
+    }
 
     const targetSelection: FrozenSelection = {
       start: selection.start,
@@ -419,6 +461,10 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
     await run();
   }
 
+  function handleCustomLanguageBlur() {
+    setCustomLanguage(normalizedCustomLanguage);
+  }
+
   function reset() {
     abortControllerRef.current?.abort();
     abortControllerRef.current = null;
@@ -427,7 +473,6 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
     setJob(null);
     setMode("idle");
     setFinalText("");
-    setSelectedDraftText("");
     frozenSelectionRef.current = null;
   }
 
@@ -445,26 +490,6 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
 
   function cancelGeneration() {
     abortControllerRef.current?.abort();
-  }
-
-  function captureDraftSelection() {
-    const textarea = suggestionRef.current;
-    if (!textarea) {
-      setSelectedDraftText("");
-      return;
-    }
-
-    const start = textarea.selectionStart ?? 0;
-    const end = textarea.selectionEnd ?? 0;
-    const selected = finalText.slice(start, end).trim();
-    setSelectedDraftText(selected);
-  }
-
-  function useSelectedPortion() {
-    const trimmed = normalizeSuggestionText(selectedDraftText);
-    if (!trimmed) return;
-    setFinalText(trimmed);
-    setSelectedDraftText("");
   }
 
   return (
@@ -618,11 +643,22 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
                 <div className="mt-2">
                   <Input
                     value={customLanguage}
-                    onChange={(e) => setCustomLanguage(e.target.value)}
+                    onChange={(e) =>
+                      setCustomLanguage(e.target.value.slice(0, MAX_CUSTOM_LANGUAGE_LENGTH))
+                    }
+                    onBlur={handleCustomLanguageBlur}
                     placeholder="Optional: Italian, Urdu, Turkish"
                     disabled={isRunning}
+                    maxLength={MAX_CUSTOM_LANGUAGE_LENGTH}
                   />
                 </div>
+                {customLanguageError ? (
+                  <div className="mt-2 text-xs text-red-600">{customLanguageError}</div>
+                ) : (
+                  <div className="mt-2 text-xs text-slate-500">
+                    Optional. Overrides the preset language when filled.
+                  </div>
+                )}
               </div>
             </>
           )}
@@ -654,14 +690,16 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
 
         <div className="mt-4">
           <div className="flex flex-wrap items-center gap-2">
-            <Button
-              variant="primary"
-              onClick={run}
-              disabled={!canRun || isRunning}
-              className="w-full sm:w-auto"
-            >
-              {isRunning ? "Generating..." : "Generate"}
-            </Button>
+            {mode === "idle" && (
+              <Button
+                variant="primary"
+                onClick={run}
+                disabled={!canRun || isRunning || Boolean(customLanguageError)}
+                className="w-full sm:w-auto"
+              >
+                Generate
+              </Button>
+            )}
 
             {isRunning && (
               <Button
@@ -673,14 +711,16 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
               </Button>
             )}
 
-            <Button
-              variant="secondary"
-              onClick={apply}
-              disabled={!canApply}
-              className="w-full sm:w-auto"
-            >
-              Accept
-            </Button>
+            {(mode === "ready" || (mode === "error" && noticeKind === "conflict")) && (
+              <Button
+                variant="primary"
+                onClick={apply}
+                disabled={!canApply}
+                className="w-full sm:w-auto"
+              >
+                Accept
+              </Button>
+            )}
 
             {(mode === "ready" || mode === "error") && (
               <Button
@@ -693,19 +733,19 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
               </Button>
             )}
 
-            {(mode === "ready" || (mode === "error" && noticeKind === "conflict")) && (
+            {(mode === "ready" || mode === "error") && (
               <Button
                 variant="ghost"
-                onClick={useSelectedPortion}
-                disabled={selectedDraftText.trim().length === 0}
+                onClick={() => void rejectCurrent()}
                 className="w-full sm:w-auto"
               >
-                Use selected part
+                {mode === "ready" ? "Reject" : "Dismiss"}
               </Button>
             )}
+
           </div>
 
-          <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="mt-3">
             <div className="text-xs leading-relaxed text-gray-600">
               {mode === "idle" && "Ready when you are."}
               {mode === "running" && "Streaming suggestion as it is generated."}
@@ -720,16 +760,6 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
                 noticeKind === "error" &&
                 "Fix the issue and try again."}
             </div>
-
-            {(mode === "ready" || mode === "error") && (
-              <button
-                type="button"
-                onClick={() => void rejectCurrent()}
-                className="self-start text-xs font-medium text-gray-700 transition-colors hover:text-gray-900 sm:self-auto"
-              >
-                {mode === "ready" ? "Reject" : "Dismiss"}
-              </button>
-            )}
           </div>
         </div>
 
@@ -749,13 +779,9 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
 
           <div className="mt-2">
             <textarea
-              ref={suggestionRef}
               className="w-full min-h-[160px] rounded-2xl border border-slate-200 bg-white p-3 text-sm text-gray-900 shadow-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:bg-gray-50 disabled:text-gray-500"
               value={finalText}
               onChange={(e) => setFinalText(e.target.value)}
-              onSelect={captureDraftSelection}
-              onKeyUp={captureDraftSelection}
-              onMouseUp={captureDraftSelection}
               placeholder={
                 canRun
                   ? mode === "running"
@@ -791,14 +817,7 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
 
           {(mode === "ready" || (mode === "error" && noticeKind === "conflict")) && (
             <div className="mt-2 text-xs text-slate-500">
-              You can edit the suggestion before accepting it, or highlight part of it and keep
-              only that selected portion.
-            </div>
-          )}
-
-          {selectedDraftText.trim().length > 0 && (
-            <div className="mt-2 text-xs text-slate-600">
-              Selected excerpt ready: “{clampPreview(selectedDraftText.trim(), 70)}”
+              You can edit the suggestion before accepting it.
             </div>
           )}
         </div>

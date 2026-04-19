@@ -132,8 +132,11 @@ export async function rejectAIJob(jobId: string) {
   });
 }
 
-export async function listAIHistory(documentId: string) {
-  return http<AIHistoryItem[]>(`/ai/history/${encodeURIComponent(documentId)}`);
+export async function listAIHistory(documentId: string, limit = 20) {
+  const safeLimit = Math.max(1, Math.min(limit, 100));
+  return http<AIHistoryItem[]>(
+    `/ai/history/${encodeURIComponent(documentId)}?limit=${encodeURIComponent(String(safeLimit))}`
+  );
 }
 
 export async function streamAIJob(

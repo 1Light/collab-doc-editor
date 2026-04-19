@@ -634,7 +634,7 @@ export const aiJobService = {
     }
   },
 
-  async listHistory(documentId: string, requesterId: string, linkToken?: string) {
+  async listHistory(documentId: string, requesterId: string, linkToken?: string, limit = 20) {
     const role = await permissionService.resolveEffectiveRole({
       documentId,
       userId: requesterId,
@@ -644,7 +644,7 @@ export const aiJobService = {
       throw apiError(ERROR_CODES.FORBIDDEN, "No access to this document");
     }
 
-    const jobs = await aiJobRepo.listByDocument(documentId);
+    const jobs = await aiJobRepo.listByDocument(documentId, limit);
 
     return jobs.map((job) => {
       const params =

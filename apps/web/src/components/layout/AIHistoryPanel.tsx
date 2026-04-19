@@ -49,7 +49,7 @@ export function AIHistoryPanel({ documentId }: Props) {
     setError(null);
 
     try {
-      const data = await listAIHistory(documentId);
+      const data = await listAIHistory(documentId, 20);
       setItems(Array.isArray(data) ? data : []);
     } catch (err: unknown) {
       setError(getErrorMessage(err, "Failed to load AI history"));

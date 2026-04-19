@@ -79,7 +79,10 @@ export const aiJobRepo = {
     });
   },
 
-  async listByDocument(documentId: string) {
+  async listByDocument(documentId: string, limit?: number) {
+    const take =
+      typeof limit === "number" && limit > 0 ? Math.floor(limit) : undefined;
+
     return prisma.aIJob.findMany({
       where: { documentId },
       orderBy: { createdAt: "desc" },
@@ -95,6 +98,7 @@ export const aiJobRepo = {
           },
         },
       },
+      ...(typeof take === "number" ? { take } : {}),
     });
   },
 
