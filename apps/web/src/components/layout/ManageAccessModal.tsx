@@ -29,9 +29,11 @@ const ROLE_OPTIONS: Array<{ value: Exclude<DocumentRole, "Owner">; label: string
   { value: "Editor", label: "Editor" },
 ];
 
+const DEFAULT_LINK_ROLE: Exclude<DocumentRole, "Owner"> = "Viewer";
+
 function displayName(p: Permission) {
   if (p.role === "Owner") return "Owner";
-  if (p.principalType === "link") return "Anyone with link";
+  if (p.principalType === "link") return "Anyone in org with link";
   const u = p.user;
   const name = u?.name?.trim();
   const email = u?.email?.trim();
@@ -106,8 +108,6 @@ export function ManageAccessModal({ open, documentId, onClose, meId }: Props) {
   const [creatingLink, setCreatingLink] = useState(false);
   const [copyingToken, setCopyingToken] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [newLinkRole, setNewLinkRole] = useState<Exclude<DocumentRole, "Owner">>("Viewer");
-  const [freshLink, setFreshLink] = useState<string | null>(null);
 
   const [items, setItems] = useState<Permission[]>([]);
   const [invites, setInvites] = useState<DocumentInvite[]>([]);
@@ -262,15 +262,10 @@ export function ManageAccessModal({ open, documentId, onClose, meId }: Props) {
     setCreatingLink(true);
 
     try {
-      const out = await shareDocument(documentId, {
+      await shareDocument(documentId, {
         targetType: "link",
-        role: newLinkRole,
+        role: DEFAULT_LINK_ROLE,
       });
-
-      const token = out.linkToken?.trim();
-      if (token) {
-        setFreshLink(buildShareUrl(documentId, token));
-      }
 
       await reload();
     } catch (e: any) {
@@ -289,7 +284,6 @@ export function ManageAccessModal({ open, documentId, onClose, meId }: Props) {
 
     try {
       await navigator.clipboard.writeText(fullUrl);
-      setFreshLink(fullUrl);
     } catch (e: any) {
       setError(e?.message ?? "Failed to copy link");
     } finally {
@@ -325,7 +319,7 @@ export function ManageAccessModal({ open, documentId, onClose, meId }: Props) {
             </div>
           </div>
 
-          <div className="bg-white px-4 py-3">
+          <div className="max-h-[78vh] overflow-y-auto bg-white px-4 py-3">
             {error && (
               <div className="mb-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">
                 {error}
@@ -341,27 +335,12 @@ export function ManageAccessModal({ open, documentId, onClose, meId }: Props) {
                 <div className="min-w-0">
                   <div className="text-sm font-semibold text-slate-900">Share by link</div>
                   <div className="mt-1 text-xs text-slate-600">
-                    Generate a direct document link with a specific access role.
+                    Generate an org-only document link. You can adjust its role later in
+                    permissions.
                   </div>
                 </div>
 
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                  <select
-                    value={newLinkRole}
-                    onChange={(e) =>
-                      setNewLinkRole(e.target.value as Exclude<DocumentRole, "Owner">)
-                    }
-                    className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none"
-                    disabled={creatingLink}
-                    aria-label="Link access role"
-                  >
-                    {ROLE_OPTIONS.map((r) => (
-                      <option key={r.value} value={r.value}>
-                        {r.label}
-                      </option>
-                    ))}
-                  </select>
-
                   <Button
                     variant="primary"
                     size="sm"
@@ -372,22 +351,6 @@ export function ManageAccessModal({ open, documentId, onClose, meId }: Props) {
                   </Button>
                 </div>
               </div>
-
-              {freshLink && (
-                <div className="mt-3 rounded-xl border border-blue-200 bg-white p-3">
-                  <div className="text-xs font-medium text-slate-700">Latest generated link</div>
-                  <div className="mt-1 break-all text-xs text-slate-600">{freshLink}</div>
-                  <div className="mt-3">
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => void navigator.clipboard.writeText(freshLink)}
-                    >
-                      Copy latest link
-                    </Button>
-                  </div>
-                </div>
-              )}
             </div>
 
             {/* Permissions */}
@@ -401,7 +364,7 @@ export function ManageAccessModal({ open, documentId, onClose, meId }: Props) {
               ) : items.length === 0 ? (
                 <div className="p-3 text-sm text-gray-600">No permissions</div>
               ) : (
-                <ul className="divide-y divide-gray-200">
+                <ul className="max-h-[22rem] divide-y divide-gray-200 overflow-y-auto">
                   {items.map((p) => {
                     const key = `${p.principalType}:${p.principalId}`;
                     const isOwner = p.role === "Owner";
@@ -481,7 +444,7 @@ export function ManageAccessModal({ open, documentId, onClose, meId }: Props) {
               ) : invites.length === 0 ? (
                 <div className="p-3 text-sm text-gray-600">No pending invites</div>
               ) : (
-                <ul className="divide-y divide-gray-200">
+                <ul className="max-h-[16rem] divide-y divide-gray-200 overflow-y-auto">
                   {invites.map((i) => {
                     const key = `invite:${i.id}`;
                     const isRevoking = revokingInviteId === i.id;
@@ -525,8 +488,8 @@ export function ManageAccessModal({ open, documentId, onClose, meId }: Props) {
             </div>
 
             <div className="mt-3 text-xs text-gray-500">
-              Tip: “Anyone with link” entries are link tokens; removing access removes that link’s
-              access.
+              Tip: “Anyone in org with link” entries are internal org link tokens; removing access
+              disables that link.
             </div>
           </div>
         </Card>

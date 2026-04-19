@@ -62,6 +62,19 @@ function isProtectedPath(pathname: string) {
   );
 }
 
+function readAccessTokenFromSearch(search: string) {
+  const params = new URLSearchParams(search);
+  const raw = params.get("access");
+  const trimmed = raw?.trim();
+  return trimmed ? trimmed : null;
+}
+
+function readDocumentIdFromPathname(pathname: string) {
+  const match = /^\/documents\/([^/?#]+)/.exec(pathname);
+  const raw = match?.[1]?.trim();
+  return raw ? raw : null;
+}
+
 function defaultAuthedPath(user: MeUser | null) {
   return user?.orgRole === "OrgAdmin" || user?.orgRole === "OrgOwner"
     ? "/admin"
@@ -93,6 +106,7 @@ export default function App() {
   const isOrgOwner = me?.orgRole === "OrgOwner";
   const inAdmin = location.pathname === "/admin";
   const onAuthPage = isAuthPath(location.pathname);
+  const inEditorRoute = location.pathname.startsWith("/documents/");
 
   useEffect(() => {
     const handleBeforeUnload = () => {
@@ -117,16 +131,32 @@ export default function App() {
 
     (async () => {
       const pathname = location.pathname;
+      const search = location.search;
 
       const orgInviteMatch = pathname.match(/^\/invite\/org\/([^/]+)$/);
       const documentInviteMatch = pathname.match(/^\/invite\/document\/([^/]+)$/);
       const signupInviteMatch = pathname.match(/^\/signup\/invite\/([^/]+)$/);
+      const sharedDocumentId = readDocumentIdFromPathname(pathname);
+      const sharedAccessToken = readAccessTokenFromSearch(search);
 
       const orgInviteToken = orgInviteMatch?.[1];
       const documentInviteToken = documentInviteMatch?.[1];
       const signupInviteToken = signupInviteMatch?.[1];
 
       if (!hasToken()) {
+        if (sharedDocumentId && sharedAccessToken) {
+          rememberPendingInvite({
+            name: "documentLinkOpen",
+            documentId: sharedDocumentId,
+            token: sharedAccessToken,
+          });
+          if (alive) {
+            setAuthChecked(true);
+            navigate("/login", { replace: true });
+          }
+          return;
+        }
+
         if (documentInviteToken) {
           rememberPendingInvite({ name: "documentInviteAccept", token: documentInviteToken });
           if (alive) {
@@ -174,6 +204,16 @@ export default function App() {
 
         const pending = takePendingInvite();
         if (pending) {
+          if (pending.name === "documentLinkOpen") {
+            navigate(
+              `/documents/${encodeURIComponent(pending.documentId)}?access=${encodeURIComponent(
+                pending.token
+              )}`,
+              { replace: true }
+            );
+            return;
+          }
+
           if (pending.name === "signupInvite") {
             navigate(defaultAuthedPath(normalized), { replace: true });
             return;
@@ -224,7 +264,7 @@ export default function App() {
     return () => {
       alive = false;
     };
-  }, [location.pathname, navigate]);
+  }, [location.pathname, location.search, navigate]);
 
   async function loadCurrentUserAndRouteAfterLogin() {
     try {
@@ -236,6 +276,16 @@ export default function App() {
 
       const pending = takePendingInvite();
       if (pending) {
+        if (pending.name === "documentLinkOpen") {
+          navigate(
+            `/documents/${encodeURIComponent(pending.documentId)}?access=${encodeURIComponent(
+              pending.token
+            )}`,
+            { replace: true }
+          );
+          return;
+        }
+
         if (pending.name === "orgInviteAccept") {
           navigate(`/invite/org/${pending.token}`, { replace: true });
           return;
@@ -343,7 +393,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {!onAuthPage && (
+      {!onAuthPage && !inEditorRoute && (
         <AppHeader
           me={me}
           isAdmin={isAdmin}

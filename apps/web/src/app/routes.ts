@@ -3,7 +3,8 @@
 export type PendingInviteRoute =
   | { name: "signupInvite"; token: string }
   | { name: "orgInviteAccept"; token: string }
-  | { name: "documentInviteAccept"; token: string };
+  | { name: "documentInviteAccept"; token: string }
+  | { name: "documentLinkOpen"; documentId: string; token: string };
 
 export function rememberPendingInvite(route: PendingInviteRoute) {
   localStorage.setItem("pendingInvite", JSON.stringify(route));
@@ -18,10 +19,13 @@ export function readPendingInvite(): PendingInviteRoute | null {
 
     if (
       parsed &&
-      typeof parsed.token === "string" &&
-      (parsed.name === "orgInviteAccept" ||
-        parsed.name === "documentInviteAccept" ||
-        parsed.name === "signupInvite")
+      ((typeof parsed.token === "string" &&
+        (parsed.name === "orgInviteAccept" ||
+          parsed.name === "documentInviteAccept" ||
+          parsed.name === "signupInvite")) ||
+        (parsed.name === "documentLinkOpen" &&
+          typeof parsed.documentId === "string" &&
+          typeof parsed.token === "string"))
     ) {
       return parsed;
     }
@@ -43,10 +47,13 @@ export function takePendingInvite(): PendingInviteRoute | null {
 
     if (
       parsed &&
-      typeof parsed.token === "string" &&
-      (parsed.name === "orgInviteAccept" ||
-        parsed.name === "documentInviteAccept" ||
-        parsed.name === "signupInvite")
+      ((typeof parsed.token === "string" &&
+        (parsed.name === "orgInviteAccept" ||
+          parsed.name === "documentInviteAccept" ||
+          parsed.name === "signupInvite")) ||
+        (parsed.name === "documentLinkOpen" &&
+          typeof parsed.documentId === "string" &&
+          typeof parsed.token === "string"))
     ) {
       return parsed;
     }
