@@ -8,6 +8,7 @@ import {
 import { Button } from "../../../components/ui/Button";
 import { Card } from "../../../components/ui/Card";
 import { Input } from "../../../components/ui/Input";
+import { OwnerSignupCta } from "../components/OwnerSignupCta";
 
 type Props = {
   onLoggedIn?: () => void;
@@ -181,7 +182,8 @@ export function Login({
     : "Sign in";
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="relative min-h-screen bg-gray-50">
+      <OwnerSignupCta />
       <div className="mx-auto flex min-h-screen max-w-6xl items-center justify-center px-4 py-10 sm:px-6">
         <div className="w-full max-w-md">
           <div className="mb-6 text-center">
