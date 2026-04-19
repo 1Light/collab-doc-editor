@@ -1,6 +1,7 @@
 import { AISuggestionPanel } from "../ai/AISuggestionPanel";
 import { CommentsPanel } from "../comments/CommentsPanel";
 import type { Comment } from "../comments/api";
+import { AIHistoryPanel } from "../../components/layout/AIHistoryPanel";
 import { VersionHistoryPanel } from "../../components/layout/VersionHistoryPanel";
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
@@ -49,9 +50,11 @@ export function EditorSidePanel(props: Props) {
       <div className="mb-3 flex items-center justify-between">
         <div className="text-sm font-semibold text-gray-900">
           {props.sidePanel === "ai"
-            ? "AI"
+            ? "AI Suggestions"
             : props.sidePanel === "comments"
               ? "Comments"
+              : props.sidePanel === "ai-history"
+                ? "AI Interaction History"
               : "Version History"}
         </div>
 
@@ -77,6 +80,8 @@ export function EditorSidePanel(props: Props) {
           autoFocus={Boolean(props.pendingCommentAnchor)}
           onChanged={props.onCommentsChanged}
         />
+      ) : props.sidePanel === "ai-history" ? (
+        <AIHistoryPanel documentId={props.documentId} />
       ) : (
         <VersionHistoryPanel
           documentId={props.documentId}

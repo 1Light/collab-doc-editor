@@ -1,7 +1,7 @@
-// apps/web/src/features/auth/auth.ts
+// apps/web/src/features/auth/api.ts
 
 import { http } from "../../lib/http";
-import { disconnectSocket } from "../realtime/socket";
+import { disconnectSocket, refreshOrgRoom } from "../realtime/socket";
 
 export type LoginResponse = {
   accessToken: string;
@@ -80,6 +80,25 @@ export type DeleteAccountResponse = {
   message: string;
 };
 
+export type OrganizationSummary = {
+  orgId: string;
+  orgName: string;
+  orgRole: "OrgAdmin" | "OrgOwner" | null;
+  joinedAt: string;
+  documentCount: number;
+  recentDocuments: Array<{
+    id: string;
+    title: string;
+    updatedAt: string;
+    role: "Viewer" | "Commenter" | "Editor" | "Owner" | null;
+  }>;
+};
+
+export type OrganizationsResponse = {
+  activeOrgId: string | null;
+  organizations: OrganizationSummary[];
+};
+
 function storeAuth(data: LoginResponse | { accessToken: string }) {
   localStorage.setItem("accessToken", data.accessToken);
 }
@@ -99,6 +118,16 @@ function clearStoredAuth() {
   localStorage.removeItem("accessToken");
   localStorage.removeItem("me");
   localStorage.removeItem("orgId");
+}
+
+function normalizeMeFromLoginUser(user: LoginResponse["user"]): MeResponse {
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    orgRole: user.orgRole,
+    orgId: user.orgId ?? null,
+  };
 }
 
 /**
@@ -205,6 +234,52 @@ export async function previewOrgInvite(token: string) {
  */
 export async function me() {
   return http<MeResponse>("/auth/me", { method: "GET" });
+}
+
+export async function listOrganizations() {
+  return http<OrganizationsResponse>("/auth/organizations", { method: "GET" });
+}
+
+export async function switchOrganization(orgId: string) {
+  const data = await http<MeResponse & { orgName?: string }>("/auth/switch-organization", {
+    method: "POST",
+    body: { orgId },
+  });
+
+  storeMe({
+    id: data.id,
+    name: data.name,
+    email: data.email,
+    orgId: data.orgId,
+    orgRole: data.orgRole,
+  });
+
+  refreshOrgRoom();
+
+  return data;
+}
+
+export async function leaveOrganization(orgId: string) {
+  return http<{
+    left: boolean;
+    orgId: string;
+    orgName: string;
+    nextOrgId: string | null;
+    nextOrgRole: "OrgAdmin" | "OrgOwner" | null;
+  }>(`/auth/organizations/${encodeURIComponent(orgId)}/leave`, {
+    method: "DELETE",
+  });
+}
+
+export async function refreshSession() {
+  const data = await http<LoginResponse>("/auth/refresh", {
+    method: "POST",
+  });
+
+  storeAuth(data);
+  storeMe(normalizeMeFromLoginUser(data.user));
+
+  return normalizeMeFromLoginUser(data.user);
 }
 
 /**

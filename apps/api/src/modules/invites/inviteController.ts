@@ -5,6 +5,7 @@ import crypto from "node:crypto";
 import { prisma } from "../../lib/prisma";
 import { ERROR_CODES } from "@repo/contracts";
 import { emailService } from "../../integrations/emailService";
+import { realtimeNotifyService } from "../../integrations/realtimeNotifyService";
 import { auditLogService } from "../audit/auditLogService";
 import type { DocumentRole } from "@repo/contracts";
 import { inviteService } from "./inviteService";
@@ -382,6 +383,14 @@ export const inviteController = {
           email: invite.email,
           orgRole: invite.orgRole ?? null,
         },
+      });
+
+      await realtimeNotifyService.orgAdminDataChanged({
+        orgId: invite.orgId,
+        reason: "invite_accepted",
+        actorUserId: req.authUser.id,
+        targetUserId: req.authUser.id,
+        inviteId: invite.id,
       });
 
       return res.json({

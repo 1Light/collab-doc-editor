@@ -3,13 +3,16 @@
 import nodemailer from "nodemailer";
 import { Resend } from "resend";
 
-console.log("[emailService] EMAIL_PROVIDER:", process.env.EMAIL_PROVIDER ?? "not set");
-console.log("[emailService] resend configured:", Boolean(process.env.RESEND_API_KEY));
-console.log(
-  "[emailService] gmail configured:",
-  Boolean(process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD)
-);
-console.log("[emailService] EMAIL_FROM:", process.env.EMAIL_FROM);
+const DEBUG_EMAIL = process.env.NODE_ENV !== "test" && process.env.DEBUG_EMAIL === "true";
+
+function logDebug(message: string, ...args: unknown[]) {
+  if (!DEBUG_EMAIL) return;
+  console.log(message, ...args);
+}
+
+function logError(message: string, ...args: unknown[]) {
+  console.error(message, ...args);
+}
 
 type OrgInviteEmailParams = {
   to: string;
@@ -63,7 +66,7 @@ const FROM =
 async function sendEmail(params: { to: string; subject: string; html: string }) {
   const to = (params.to ?? "").trim();
 
-  console.log("[emailService] sendEmail called:", {
+  logDebug("[emailService] sendEmail called:", {
     to,
     subject: params.subject,
     provider: process.env.EMAIL_PROVIDER ?? (resend ? "resend" : "fallback"),
@@ -71,7 +74,7 @@ async function sendEmail(params: { to: string; subject: string; html: string }) 
 
   if (!to || !to.includes("@")) {
     const err = new Error(`Invalid recipient email: "${params.to}"`);
-    console.error("[emailService] invalid recipient", err.message);
+    logError("[emailService] invalid recipient", err.message);
     throw err;
   }
 
@@ -90,7 +93,7 @@ async function sendEmail(params: { to: string; subject: string; html: string }) 
         html: params.html,
       });
 
-      console.log("[emailService] gmail response:", {
+      logDebug("[emailService] gmail response:", {
         messageId: info.messageId,
         accepted: info.accepted,
         rejected: info.rejected,
@@ -107,20 +110,20 @@ async function sendEmail(params: { to: string; subject: string; html: string }) 
         html: params.html,
       });
 
-      console.log("[emailService] resend response:", out);
+      logDebug("[emailService] resend response:", out);
       return;
     }
 
-    console.log("==== EMAIL (DEV FALLBACK) ====");
-    console.log("From:", FROM);
-    console.log("To:", to);
-    console.log("Subject:", params.subject);
-    console.log("HTML:", params.html);
-    console.log("================================");
+    logDebug("==== EMAIL (DEV FALLBACK) ====");
+    logDebug("From:", FROM);
+    logDebug("To:", to);
+    logDebug("Subject:", params.subject);
+    logDebug("HTML:", params.html);
+    logDebug("================================");
   } catch (e: any) {
-    console.error("[emailService] send failed:", e?.message ?? e);
-    if (e?.response) console.error("[emailService] provider response:", e.response);
-    if (e?.data) console.error("[emailService] provider data:", e.data);
+    logError("[emailService] send failed:", e?.message ?? e);
+    if (e?.response) logError("[emailService] provider response:", e.response);
+    if (e?.data) logError("[emailService] provider data:", e.data);
     throw e;
   }
 }

@@ -8,7 +8,7 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit",
-    "lint": "echo \"(optional) add eslint later\"",
+    "lint": "pnpm typecheck",
     "test": "vitest --config tests/setup/vitest.config.ts run",
     "test:unit": "vitest --config tests/setup/vitest.config.ts run tests/unit",
     "test:integration": "vitest --config tests/setup/vitest.config.ts run tests/integration",

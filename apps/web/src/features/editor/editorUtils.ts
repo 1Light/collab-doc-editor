@@ -8,7 +8,7 @@ export type PresenceUser = {
   status?: "active" | "idle" | "offline";
 };
 
-export type SidePanel = "none" | "comments" | "ai" | "versions";
+export type SidePanel = "none" | "comments" | "ai" | "ai-history" | "versions";
 export type DocumentRole = "Viewer" | "Commenter" | "Editor" | "Owner";
 
 export type CommentChangedEvent = {

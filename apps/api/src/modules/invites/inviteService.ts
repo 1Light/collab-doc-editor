@@ -20,7 +20,8 @@ function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
 }
 
-// raw token is returned (for MVP). only hash is stored in DB.
+// The raw token is returned once so the caller can build the invite link.
+// Only the hash is stored in the database.
 function makeRawToken() {
   return crypto.randomBytes(24).toString("hex");
 }
@@ -78,21 +79,21 @@ async function notifyRealtimeRoleUpdated(params: {
 export const inviteService = {
   /**
    * Create (or re-create) a pending invite for an email.
-   * MVP: returns rawToken so frontend can show/share it.
+   * Returns the raw token so the caller can share or email the invite link.
    */
   async createDocumentInvite(params: {
     documentId: string;
     invitedById: string;
     email: string;
     role: DocumentRole;
-    expiresInDays?: number; // default 7
+    expiresInDays?: number; // defaults to 7
   }): Promise<{
     inviteId: string;
     email: string;
     role: SharableRole;
     status: InviteStatus;
     expiresAt: Date;
-    token: string; // raw token (MVP)
+    token: string; // raw token returned to the caller once
   }> {
     const { documentId, invitedById } = params;
     const email = normalizeEmail(params.email);
@@ -100,7 +101,7 @@ export const inviteService = {
     assertSharableRole(params.role);
     const role = params.role;
 
-    // load doc to get org + owner
+    // Load the document to resolve organization ownership and title metadata.
     const doc = await prisma.document.findUnique({
       where: { id: documentId },
       select: { id: true, orgId: true, ownerId: true, isDeleted: true, title: true },

@@ -2,7 +2,7 @@
 
 import type { Request, Response, NextFunction } from "express";
 import { ERROR_CODES } from "@repo/contracts";
-import { runJob } from "./runJob";
+import { runJob, streamJob } from "./runJob";
 
 function apiError(
   code: (typeof ERROR_CODES)[keyof typeof ERROR_CODES],
@@ -59,6 +59,11 @@ function normalizeParameters(parameters: unknown) {
   }
 
   return out;
+}
+
+function writeSse(res: Response, event: string, data: unknown) {
+  res.write(`event: ${event}\n`);
+  res.write(`data: ${JSON.stringify(data)}\n\n`);
 }
 
 export const jobController = {
@@ -148,6 +153,97 @@ export const jobController = {
           originalMessage: err?.message ?? String(err),
         })
       );
+    }
+  },
+
+  /**
+   * POST /jobs/stream
+   * Body: { jobId, operation, selectedText, parameters? }
+   * Res: SSE events: meta, chunk, done, error
+   */
+  async stream(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { jobId, operation, selectedText, parameters } = req.body as {
+        jobId?: unknown;
+        operation?: unknown;
+        selectedText?: unknown;
+        parameters?: unknown;
+      };
+
+      if (!jobId || typeof jobId !== "string") {
+        throw apiError(ERROR_CODES.INVALID_REQUEST, "jobId is required");
+      }
+
+      if (!isValidOperation(operation)) {
+        throw apiError(ERROR_CODES.INVALID_REQUEST, "Invalid operation");
+      }
+
+      if (typeof selectedText !== "string") {
+        throw apiError(ERROR_CODES.INVALID_REQUEST, "selectedText is required");
+      }
+
+      if (selectedText.trim().length === 0) {
+        throw apiError(ERROR_CODES.INVALID_REQUEST, "selectedText is empty");
+      }
+
+      const normalizedParameters = normalizeParameters(parameters);
+
+      if (operation === "translate" && !normalizedParameters.language) {
+        throw apiError(ERROR_CODES.INVALID_REQUEST, "language is required for translate");
+      }
+
+      if (operation === "reformat" && !normalizedParameters.formatStyle) {
+        throw apiError(ERROR_CODES.INVALID_REQUEST, "formatStyle is required for reformat");
+      }
+
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache, no-transform");
+      res.setHeader("Connection", "keep-alive");
+      res.flushHeaders?.();
+
+      const abortController = new AbortController();
+      req.on("close", () => abortController.abort());
+
+      writeSse(res, "meta", { jobId });
+
+      const out = await streamJob({
+        jobId,
+        operation,
+        selectedText,
+        parameters: normalizedParameters,
+        signal: abortController.signal,
+        onChunk: async (chunk) => {
+          writeSse(res, "chunk", { chunk });
+        },
+      });
+
+      writeSse(res, "done", {
+        jobId,
+        result: out.result,
+        prompt: out.prompt ?? null,
+        model: out.model ?? null,
+      });
+      res.end();
+    } catch (err: any) {
+      if (!res.headersSent) {
+        return next(
+          apiError(ERROR_CODES.AI_PROVIDER_UNAVAILABLE, "AI provider unavailable", {
+            originalMessage: err?.message ?? String(err),
+          })
+        );
+      }
+
+      writeSse(res, "error", {
+        code:
+          err && typeof err === "object" && typeof err.code === "string"
+            ? err.code
+            : ERROR_CODES.AI_PROVIDER_UNAVAILABLE,
+        message:
+          err && typeof err === "object" && typeof err.message === "string"
+            ? err.message
+            : "AI provider unavailable",
+      });
+      res.end();
     }
   },
 };

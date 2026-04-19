@@ -256,19 +256,6 @@ export const exportService = {
       throw { code: ERROR_CODES.NOT_FOUND, message: "Document not found" };
     }
 
-    console.log("[export] format:", params.format);
-    console.log("[export] doc id:", doc?.id);
-    console.log("[export] title:", doc?.title);
-    console.log("[export] content typeof:", typeof doc?.content);
-    console.log(
-      "[export] content length:",
-      typeof doc?.content === "string" ? doc.content.length : null
-    );
-    console.log(
-      "[export] content preview (first 500):",
-      typeof doc?.content === "string" ? doc.content.slice(0, 500) : doc?.content
-    );
-
     if (params.format !== "pdf" && params.format !== "docx") {
       throw {
         code: ERROR_CODES.INVALID_REQUEST,
@@ -290,22 +277,10 @@ export const exportService = {
       bodyHtml,
     });
 
-    console.log("[export] bodyHtml length:", bodyHtml.length);
-    console.log("[export] bodyHtml preview (first 500):", bodyHtml.slice(0, 500));
-
-    if (params.format === "docx") {
-      const plainText = stripHtmlToText(bodyHtml);
-      console.log("[export] plainText length:", plainText.length);
-      console.log("[export] plainText preview (first 500):", plainText.slice(0, 500));
-    }
-
     const buffer =
       params.format === "pdf"
         ? await buildPdfBuffer(htmlDocument)
         : await buildDocxBuffer(normalizeTitle(doc.title), bodyHtml);
-
-    console.log("[export] output filename:", filename);
-    console.log("[export] buffer bytes:", buffer.length);
 
     await fs.writeFile(filepath, buffer);
 

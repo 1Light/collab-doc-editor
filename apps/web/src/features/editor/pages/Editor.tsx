@@ -7,7 +7,6 @@ import type { Comment } from "../../comments/api";
 import { PresenceLayer } from "../../presence/PresenceLayer";
 import { Button } from "../../../components/ui/Button";
 import { Card } from "../../../components/ui/Card";
-import { Badge } from "../../../components/ui/Badge";
 
 import { EditorToolbar } from "../EditorToolbar";
 import { EditorBubbleMenu } from "../EditorBubbleMenu";
@@ -245,7 +244,7 @@ export function EditorPage({ documentId, onBack, onCurrentUserColorChange }: Pro
     [editorRef]
   );
 
-  async function persistDocumentContent(nextHtml: string) {
+  const persistDocumentContent = useCallback(async (nextHtml: string) => {
     const trimmedNext = nextHtml ?? "";
     const trimmedLast = lastSavedContentRef.current ?? "";
 
@@ -283,7 +282,7 @@ export function EditorPage({ documentId, onBack, onCurrentUserColorChange }: Pro
         void persistDocumentContent(queued);
       }
     }
-  }
+  }, [documentId, setBanner]);
 
   function applyLiveAIResult(params: {
     finalText: string;
@@ -524,6 +523,7 @@ export function EditorPage({ documentId, onBack, onCurrentUserColorChange }: Pro
     docRoleRef,
     editorRef,
     documentId,
+    persistDocumentContent,
   ]);
 
   useEffect(() => {
@@ -659,7 +659,24 @@ export function EditorPage({ documentId, onBack, onCurrentUserColorChange }: Pro
               aria-pressed={sidePanel === "versions"}
               title="Open version history"
             >
-              History
+              Version History
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setSidePanel((cur) => (cur === "ai-history" ? "none" : "ai-history"));
+                setPendingCommentAnchor(null);
+              }}
+              className={`rounded-xl px-3 py-2 text-xs font-semibold transition-colors ${
+                sidePanel === "ai-history"
+                  ? "bg-slate-900 text-white shadow-sm"
+                  : "text-slate-700 hover:bg-white hover:text-slate-900"
+              }`}
+              aria-pressed={sidePanel === "ai-history"}
+              title="Open AI interaction history"
+            >
+              AI Interaction History
             </button>
 
             {totalCommentsCount > 0 && (

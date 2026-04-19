@@ -220,6 +220,22 @@ describe("Realtime collaboration", () => {
     }
   });
 
+  it("rejects websocket connections without auth", async () => {
+    const socket = createClient(baseUrl, {
+      transports: ["websocket"],
+      forceNew: true,
+      autoConnect: true,
+      auth: {},
+    });
+
+    const err = await new Promise<Error>((resolve) => {
+      socket.once("connect_error", resolve);
+    });
+
+    expect(String(err.message)).toContain("Unauthorized");
+    socket.disconnect();
+  });
+
   it("propagates document updates between collaborators", async () => {
     const clientA = await connectClient(baseUrl, { userId: "u1", name: "Alice" });
     const clientB = await connectClient(baseUrl, { userId: "u2", name: "Bob" });

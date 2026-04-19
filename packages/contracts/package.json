@@ -9,7 +9,7 @@
     "dev": "tsc -w",
     "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "lint": "echo \"(optional) add eslint later\"",
+    "lint": "pnpm typecheck",
     "test": "vitest run"
   },
   "dependencies": {

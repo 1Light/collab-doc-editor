@@ -1,4 +1,4 @@
-// apps/web/src/features/documents/documents.ts
+// apps/web/src/features/documents/api.ts
 
 import { http } from "../../lib/http";
 

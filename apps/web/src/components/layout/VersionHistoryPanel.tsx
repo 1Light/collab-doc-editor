@@ -1,6 +1,6 @@
 // apps/web/src/components/layout/VersionHistoryPanel.tsx
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   listVersions,
   revertVersion,
@@ -46,6 +46,15 @@ function getAuthorLabel(v: VersionSummary) {
   return v.authorId;
 }
 
+function getErrorMessage(err: unknown, fallback: string) {
+  if (err instanceof Error && err.message.trim()) return err.message;
+  if (typeof err === "object" && err !== null && "message" in err) {
+    const message = (err as { message?: unknown }).message;
+    if (typeof message === "string" && message.trim()) return message;
+  }
+  return fallback;
+}
+
 export function VersionHistoryPanel({
   documentId,
   role,
@@ -58,19 +67,19 @@ export function VersionHistoryPanel({
   const [deleting, setDeleting] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     setError(null);
 
     try {
       const data = await listVersions(documentId, 20);
       setVersions(Array.isArray(data) ? data : []);
-    } catch (e: any) {
-      setError(e?.message ?? "Failed to load versions");
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, "Failed to load versions"));
     } finally {
       setLoading(false);
     }
-  }
+  }, [documentId]);
 
   async function handleRevert(versionId: string) {
     if (!canRevert(role)) return;
@@ -85,8 +94,8 @@ export function VersionHistoryPanel({
       await revertVersion(documentId, versionId);
       await load();
       await onReverted?.();
-    } catch (e: any) {
-      alert(e?.message ?? "Failed to revert version");
+    } catch (e: unknown) {
+      alert(getErrorMessage(e, "Failed to revert version"));
     } finally {
       setReverting(null);
     }
@@ -105,8 +114,8 @@ export function VersionHistoryPanel({
       await deleteVersion(documentId, versionId);
       await load();
       await onDeleted?.();
-    } catch (e: any) {
-      alert(e?.message ?? "Failed to remove version");
+    } catch (e: unknown) {
+      alert(getErrorMessage(e, "Failed to remove version"));
     } finally {
       setDeleting(null);
     }
@@ -114,7 +123,7 @@ export function VersionHistoryPanel({
 
   useEffect(() => {
     void load();
-  }, [documentId]);
+  }, [load]);
 
   if (loading) {
     return <div className="text-sm text-gray-600">Loading version history...</div>;
