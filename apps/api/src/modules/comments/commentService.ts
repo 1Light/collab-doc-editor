@@ -51,6 +51,7 @@ export const commentService = {
     anchor?: { start: number; end: number };
     quote?: string;
     parentCommentId?: string;
+    linkToken?: string;
   }) {
     const doc = await documentRepo.findById(params.documentId);
     if (!doc) throw { code: ERROR_CODES.NOT_FOUND, message: "Document not found" };
@@ -58,6 +59,7 @@ export const commentService = {
     const role = await permissionService.resolveEffectiveRole({
       documentId: params.documentId,
       userId: params.authorId,
+      linkToken: params.linkToken,
     });
 
     requireRole(role, ["Commenter", "Editor", "Owner"]);
@@ -133,6 +135,7 @@ export const commentService = {
     documentId: string;
     requesterId: string;
     status?: "open" | "resolved" | "all";
+    linkToken?: string;
   }) {
     const doc = await documentRepo.findById(params.documentId);
     if (!doc) throw { code: ERROR_CODES.NOT_FOUND, message: "Document not found" };
@@ -140,6 +143,7 @@ export const commentService = {
     const role = await permissionService.resolveEffectiveRole({
       documentId: params.documentId,
       userId: params.requesterId,
+      linkToken: params.linkToken,
     });
 
     requireRole(role, ["Viewer", "Commenter", "Editor", "Owner"]);
@@ -150,13 +154,19 @@ export const commentService = {
     return buildCommentTree(comments as any) as CommentWithReplies[];
   },
 
-  async resolveComment(params: { documentId: string; commentId: string; requesterId: string }) {
+  async resolveComment(params: {
+    documentId: string;
+    commentId: string;
+    requesterId: string;
+    linkToken?: string;
+  }) {
     const doc = await documentRepo.findById(params.documentId);
     if (!doc) throw { code: ERROR_CODES.NOT_FOUND, message: "Document not found" };
 
     const role = await permissionService.resolveEffectiveRole({
       documentId: params.documentId,
       userId: params.requesterId,
+      linkToken: params.linkToken,
     });
 
     requireRole(role, ["Editor", "Owner"]);
@@ -225,6 +235,7 @@ export const commentService = {
     commentId: string;
     requesterId: string;
     body: string;
+    linkToken?: string;
   }) {
     const doc = await documentRepo.findById(params.documentId);
     if (!doc) throw { code: ERROR_CODES.NOT_FOUND, message: "Document not found" };
@@ -232,6 +243,7 @@ export const commentService = {
     const role = await permissionService.resolveEffectiveRole({
       documentId: params.documentId,
       userId: params.requesterId,
+      linkToken: params.linkToken,
     });
 
     requireRole(role, ["Commenter", "Editor", "Owner"]);
@@ -271,13 +283,19 @@ export const commentService = {
     return updated;
   },
 
-  async deleteComment(params: { documentId: string; commentId: string; requesterId: string }) {
+  async deleteComment(params: {
+    documentId: string;
+    commentId: string;
+    requesterId: string;
+    linkToken?: string;
+  }) {
     const doc = await documentRepo.findById(params.documentId);
     if (!doc) throw { code: ERROR_CODES.NOT_FOUND, message: "Document not found" };
 
     const role = await permissionService.resolveEffectiveRole({
       documentId: params.documentId,
       userId: params.requesterId,
+      linkToken: params.linkToken,
     });
 
     requireRole(role, ["Commenter", "Editor", "Owner"]);

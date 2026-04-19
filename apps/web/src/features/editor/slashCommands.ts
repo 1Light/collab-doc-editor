@@ -5,7 +5,7 @@ import React from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { SlashCommandMenu } from "./SlashCommandMenu";
 
-type CommandId = "h1" | "h2" | "h3" | "bullets" | "numbers" | "paragraph";
+type CommandId = "h1" | "h2" | "h3" | "bullets" | "numbers" | "paragraph" | "code";
 
 export type SlashCommandItem = {
   id: CommandId;
@@ -69,6 +69,15 @@ function createItems(): SlashCommandItem[] {
       keywords: ["list", "numbers", "ol", "ordered"],
       run: ({ editor, range }) => {
         editor.chain().focus().deleteRange(range).toggleOrderedList().run();
+      },
+    },
+    {
+      id: "code",
+      title: "Code block",
+      description: "Insert a monospaced multi-line code block.",
+      keywords: ["code", "snippet", "pre", "block"],
+      run: ({ editor, range }) => {
+        editor.chain().focus().deleteRange(range).toggleCodeBlock().run();
       },
     },
   ];

@@ -1,4 +1,5 @@
 import { http } from "../../lib/http";
+import { getDocumentLinkToken } from "../../lib/documentAccess";
 
 export type AIOperation = "enhance" | "summarize" | "translate" | "reformat";
 
@@ -92,6 +93,10 @@ function getOrgId(): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
+function getDocumentAccessToken(): string | null {
+  return getDocumentLinkToken();
+}
+
 function normalizePath(path: string) {
   return path.startsWith("/") ? path : `/${path}`;
 }
@@ -140,6 +145,7 @@ export async function streamAIJob(
 ) {
   const token = getToken();
   const orgId = getOrgId();
+  const documentAccessToken = getDocumentAccessToken();
 
   const res = await fetch(`${API_BASE_URL}${normalizePath("/ai/jobs/stream")}`, {
     method: "POST",
@@ -147,6 +153,7 @@ export async function streamAIJob(
       "content-type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(orgId ? { "x-org-id": orgId } : {}),
+      ...(documentAccessToken ? { "x-document-link-token": documentAccessToken } : {}),
     },
     credentials: "include",
     body: JSON.stringify(params),

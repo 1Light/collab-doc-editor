@@ -71,6 +71,16 @@ async function mockEditorApi(page: Page) {
   await page.route("**/api/documents/doc-*", async (route) => {
     const url = route.request().url();
     const isNewDoc = url.endsWith("/api/documents/doc-new");
+    const method = route.request().method();
+
+    if (method === "PUT") {
+      await fulfillJson(route, {
+        id: isNewDoc ? "doc-new" : "doc-1",
+        updatedAt: "2026-04-10T12:10:00.000Z",
+        versionHeadId: "ver-3",
+      });
+      return;
+    }
 
     await fulfillJson(route, {
       id: isNewDoc ? "doc-new" : "doc-1",
@@ -139,6 +149,52 @@ async function mockEditorApi(page: Page) {
       },
     ]);
   });
+
+  await page.route("**/api/ai/jobs/stream", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "text/event-stream",
+      body: [
+        'event: chunk',
+        'data: {"chunk":"A shorter summary."}',
+        "",
+        'event: done',
+        'data: {"jobId":"job-stream-1","result":"A shorter summary.","prompt":"Summarize the selected text.","model":"mock-model"}',
+        "",
+        "",
+      ].join("\n"),
+    });
+  });
+
+  await page.route("**/api/ai/jobs/job-stream-1/apply", async (route) => {
+    await fulfillJson(route, {
+      versionHeadId: "ver-3",
+      updatedAt: "2026-04-10T12:10:00.000Z",
+    });
+  });
+}
+
+async function selectEditorText(page: Page, textToMatch: string, startOffset = 0, endOffset?: number) {
+  await page.waitForFunction(() => Boolean((window as any).__collabEditor));
+  await page.evaluate(
+    (payload) => {
+      const editor = (window as any).__collabEditor;
+      if (!editor) {
+        throw new Error("Editor instance not available");
+      }
+
+      editor.commands.setContent(`<p>${payload.textToMatch}</p>`);
+      const start = 1 + payload.startOffset;
+      const end =
+        typeof payload.endOffset === "number"
+          ? start + payload.endOffset
+          : start + payload.textToMatch.length;
+
+      editor.commands.focus();
+      editor.commands.setTextSelection({ from: start, to: end });
+    },
+    { textToMatch, startOffset, endOffset }
+  );
 }
 
 test.describe("project journeys", () => {
@@ -208,5 +264,41 @@ test.describe("project journeys", () => {
     await expect(page.getByText("Showing latest 1 AI interactions")).toBeVisible();
     await expect(page.getByText("summarize")).toBeVisible();
     await expect(page.getByText("Accepted")).toBeVisible();
+  });
+
+  test("user can login, generate an AI suggestion, accept it, and undo it", async ({ page }) => {
+    await page.route("**/api/auth/login", async (route) => {
+      await fulfillJson(route, {
+        accessToken: "test-access-token",
+        expiresIn: 1800,
+        user: { ...memberUser },
+      });
+    });
+
+    await mockSession(page);
+    await mockDocumentsApi(page);
+    await mockEditorApi(page);
+
+    await page.goto("/login");
+    await page.getByPlaceholder("you@example.com").fill(memberUser.email);
+    await page.getByPlaceholder("••••••••").fill("secret123");
+    await page.getByRole("button", { name: "Sign in" }).click();
+
+    await expect(page).toHaveURL(/\/documents$/);
+    await page.getByRole("button", { name: "Open" }).first().click();
+    await expect(page).toHaveURL(/\/documents\/doc-1$/);
+
+    await selectEditorText(page, "Quarterly planning draft.");
+    await page.getByRole("button", { name: "AI Suggestions" }).click();
+
+    await expect(page.getByText("AI suggestions", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Generate" }).click();
+    await expect(page.locator("textarea")).toHaveValue("A shorter summary.");
+
+    await page.getByRole("button", { name: "Accept" }).click();
+    await expect(page.getByText(/undo this accepted ai change/i)).toBeVisible();
+
+    await page.getByRole("button", { name: "Undo AI apply" }).click();
+    await expect(page.getByText("Saved").first()).toBeVisible();
   });
 });

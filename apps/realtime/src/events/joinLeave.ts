@@ -16,12 +16,18 @@ function isDocumentRole(v: unknown): v is DocumentRole {
   return v === "Viewer" || v === "Commenter" || v === "Editor" || v === "Owner";
 }
 
-async function userHasAccess(documentId: string, token: string, orgId: string | null) {
+async function userHasAccess(
+  documentId: string,
+  token: string,
+  orgId: string | null,
+  documentAccessToken: string | null
+) {
   try {
     await axios.get(`${config.API_BASE_URL}/api/documents/${documentId}`, {
       headers: {
         Authorization: `Bearer ${token}`,
         ...(orgId ? { "x-org-id": orgId } : {}),
+        ...(documentAccessToken ? { "x-document-link-token": documentAccessToken } : {}),
       },
     });
     return true;
@@ -33,13 +39,15 @@ async function userHasAccess(documentId: string, token: string, orgId: string | 
 async function getUserRole(
   documentId: string,
   token: string,
-  orgId: string | null
+  orgId: string | null,
+  documentAccessToken: string | null
 ): Promise<DocumentRole | null> {
   try {
     const res = await axios.get(`${config.API_BASE_URL}/api/documents/${documentId}`, {
       headers: {
         Authorization: `Bearer ${token}`,
         ...(orgId ? { "x-org-id": orgId } : {}),
+        ...(documentAccessToken ? { "x-document-link-token": documentAccessToken } : {}),
       },
     });
 
@@ -61,6 +69,11 @@ function getBearerToken(socket: Socket): string | null {
   if (!asString) return null;
 
   return asString.replace(/^Bearer\s+/i, "").trim() || null;
+}
+
+function getDocumentAccessToken(socket: Socket): string | null {
+  const authToken = (socket.handshake.auth as any)?.documentAccessToken;
+  return typeof authToken === "string" && authToken.trim() ? authToken.trim() : null;
 }
 
 type JoinedDocsSet = Set<string>;
@@ -108,6 +121,7 @@ export function registerJoinLeaveEvents(
     const orgId = socket.data?.orgId as string | null;
 
     const token = getBearerToken(socket);
+    const documentAccessToken = getDocumentAccessToken(socket);
     if (!userId || !token) return;
 
     const joinedDocs = getJoinedDocs(socket);
@@ -123,7 +137,12 @@ export function registerJoinLeaveEvents(
       return;
     }
 
-    const allowed = await userHasAccess(documentId, token, orgId ?? null);
+    const allowed = await userHasAccess(
+      documentId,
+      token,
+      orgId ?? null,
+      documentAccessToken
+    );
     if (!allowed) {
       socket.emit("presence:error", { message: "Access denied" });
       return;
@@ -171,10 +190,11 @@ export function registerJoinLeaveEvents(
       if (!documentId || !principalType || !principalId || !role) return;
 
       const token = getBearerToken(socket);
+      const documentAccessToken = getDocumentAccessToken(socket);
       const orgId = (socket.data?.orgId as string | null) ?? null;
       if (!token) return;
 
-      const myRole = await getUserRole(documentId, token, orgId);
+      const myRole = await getUserRole(documentId, token, orgId, documentAccessToken);
       if (myRole !== "Owner") return;
 
       io.to(documentId).emit("document:role_updated", {
