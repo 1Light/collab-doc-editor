@@ -525,6 +525,10 @@ export function EditorPage({ documentId, onBack, onCurrentUserColorChange }: Pro
       if (!isConnected) return;
       if (!initialSyncDoneRef.current) return;
 
+      if (undoableAIChange) {
+        setUndoableAIChange(null);
+      }
+
       clearYSaveTimer();
       ySaveTimerRef.current = window.setTimeout(() => {
         const editorNow = editorRef.current;
@@ -558,6 +562,7 @@ export function EditorPage({ documentId, onBack, onCurrentUserColorChange }: Pro
     editorRef,
     documentId,
     persistDocumentContent,
+    undoableAIChange,
   ]);
 
   useEffect(() => {
@@ -749,32 +754,6 @@ export function EditorPage({ documentId, onBack, onCurrentUserColorChange }: Pro
             >
               AI Interaction History
             </button>
-
-            {docRole && ["Editor", "Owner"].includes(docRole) && (
-              <button
-                type="button"
-                onClick={() => {
-                  const trimmed = selection.text.trim();
-                  if (!trimmed) {
-                    setBanner("Select text in the editor to open AI suggestions.");
-                    return;
-                  }
-
-                  setSidePanel((cur) => (cur === "ai" ? "none" : "ai"));
-                  setPendingCommentAnchor(null);
-                  setBanner(null);
-                }}
-                className={`rounded-xl px-3 py-2 text-xs font-semibold transition-colors ${
-                  sidePanel === "ai"
-                    ? "bg-slate-900 text-white shadow-sm"
-                    : "text-slate-700 hover:bg-white hover:text-slate-900"
-                }`}
-                aria-pressed={sidePanel === "ai"}
-                title="Open AI suggestions"
-              >
-                AI Suggestions
-              </button>
-            )}
 
             {totalCommentsCount > 0 && (
               <button
