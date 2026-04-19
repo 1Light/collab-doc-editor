@@ -2,6 +2,7 @@
 
 import type { Request, Response, NextFunction } from "express";
 import { ERROR_CODES } from "@repo/contracts";
+import { getDocumentLinkToken } from "../../lib/documentLinkAccess";
 import { commentService } from "./commentService";
 import { realtimeNotifyService } from "../../integrations/realtimeNotifyService";
 
@@ -97,6 +98,7 @@ export const commentController = {
         anchor,
         quote,
         parentCommentId,
+        linkToken: getDocumentLinkToken(req),
       });
 
       await realtimeNotifyService.documentCommentChanged({
@@ -127,6 +129,7 @@ export const commentController = {
         documentId,
         requesterId: me.id,
         status,
+        linkToken: getDocumentLinkToken(req),
       });
 
       return res.json(comments.map(toDto));
@@ -151,6 +154,7 @@ export const commentController = {
         commentId,
         requesterId: me.id,
         body,
+        linkToken: getDocumentLinkToken(req),
       });
 
       await realtimeNotifyService.documentCommentChanged({
@@ -181,6 +185,7 @@ export const commentController = {
         documentId,
         commentId,
         requesterId: me.id,
+        linkToken: getDocumentLinkToken(req),
       });
 
       await realtimeNotifyService.documentCommentChanged({
@@ -211,6 +216,7 @@ export const commentController = {
         documentId,
         commentId,
         requesterId: me.id,
+        linkToken: getDocumentLinkToken(req),
       });
 
       await realtimeNotifyService.documentCommentChanged({

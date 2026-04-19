@@ -221,10 +221,12 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [noticeKind, setNoticeKind] = useState<NoticeKind>("info");
   const [finalText, setFinalText] = useState("");
+  const [selectedDraftText, setSelectedDraftText] = useState("");
 
   const frozenSelectionRef = useRef<FrozenSelection | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const modeRef = useRef<Mode>("idle");
+  const suggestionRef = useRef<HTMLTextAreaElement | null>(null);
 
   const selectionLen = useMemo(
     () => Math.max(0, (selection?.end ?? 0) - (selection?.start ?? 0)),
@@ -425,6 +427,7 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
     setJob(null);
     setMode("idle");
     setFinalText("");
+    setSelectedDraftText("");
     frozenSelectionRef.current = null;
   }
 
@@ -442,6 +445,26 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
 
   function cancelGeneration() {
     abortControllerRef.current?.abort();
+  }
+
+  function captureDraftSelection() {
+    const textarea = suggestionRef.current;
+    if (!textarea) {
+      setSelectedDraftText("");
+      return;
+    }
+
+    const start = textarea.selectionStart ?? 0;
+    const end = textarea.selectionEnd ?? 0;
+    const selected = finalText.slice(start, end).trim();
+    setSelectedDraftText(selected);
+  }
+
+  function useSelectedPortion() {
+    const trimmed = normalizeSuggestionText(selectedDraftText);
+    if (!trimmed) return;
+    setFinalText(trimmed);
+    setSelectedDraftText("");
   }
 
   return (
@@ -669,6 +692,17 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
                 Try again
               </Button>
             )}
+
+            {(mode === "ready" || (mode === "error" && noticeKind === "conflict")) && (
+              <Button
+                variant="ghost"
+                onClick={useSelectedPortion}
+                disabled={selectedDraftText.trim().length === 0}
+                className="w-full sm:w-auto"
+              >
+                Use selected part
+              </Button>
+            )}
           </div>
 
           <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -715,9 +749,13 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
 
           <div className="mt-2">
             <textarea
+              ref={suggestionRef}
               className="w-full min-h-[160px] rounded-2xl border border-slate-200 bg-white p-3 text-sm text-gray-900 shadow-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:bg-gray-50 disabled:text-gray-500"
               value={finalText}
               onChange={(e) => setFinalText(e.target.value)}
+              onSelect={captureDraftSelection}
+              onKeyUp={captureDraftSelection}
+              onMouseUp={captureDraftSelection}
               placeholder={
                 canRun
                   ? mode === "running"
@@ -753,7 +791,14 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
 
           {(mode === "ready" || (mode === "error" && noticeKind === "conflict")) && (
             <div className="mt-2 text-xs text-slate-500">
-              You can edit the suggestion before accepting it.
+              You can edit the suggestion before accepting it, or highlight part of it and keep
+              only that selected portion.
+            </div>
+          )}
+
+          {selectedDraftText.trim().length > 0 && (
+            <div className="mt-2 text-xs text-slate-600">
+              Selected excerpt ready: “{clampPreview(selectedDraftText.trim(), 70)}”
             </div>
           )}
         </div>

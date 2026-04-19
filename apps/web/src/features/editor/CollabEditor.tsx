@@ -134,6 +134,9 @@ export function CollabEditor(props: Props) {
 
   useEffect(() => {
     props.onEditorReady(editor ?? null);
+    if (typeof window !== "undefined") {
+      (window as any).__collabEditor = editor ?? null;
+    }
     return () => props.onEditorReady(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editor]);

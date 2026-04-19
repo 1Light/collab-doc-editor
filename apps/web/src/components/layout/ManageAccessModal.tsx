@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Button } from "../ui/Button";
 import { Card } from "../ui/Card";
 import {
+  shareDocument,
   deletePermission,
   listPermissions,
   updatePermission,
@@ -90,12 +91,23 @@ function fmtDate(iso: string | null | undefined) {
   return d.toLocaleString();
 }
 
+function buildShareUrl(documentId: string, token: string) {
+  if (typeof window === "undefined") return `/documents/${documentId}?access=${token}`;
+  const url = new URL(`/documents/${documentId}`, window.location.origin);
+  url.searchParams.set("access", token);
+  return url.toString();
+}
+
 export function ManageAccessModal({ open, documentId, onClose, meId }: Props) {
   const [loading, setLoading] = useState(false);
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [revokingKey, setRevokingKey] = useState<string | null>(null);
   const [revokingInviteId, setRevokingInviteId] = useState<string | null>(null);
+  const [creatingLink, setCreatingLink] = useState(false);
+  const [copyingToken, setCopyingToken] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [newLinkRole, setNewLinkRole] = useState<Exclude<DocumentRole, "Owner">>("Viewer");
+  const [freshLink, setFreshLink] = useState<string | null>(null);
 
   const [items, setItems] = useState<Permission[]>([]);
   const [invites, setInvites] = useState<DocumentInvite[]>([]);
@@ -245,6 +257,46 @@ export function ManageAccessModal({ open, documentId, onClose, meId }: Props) {
     }
   }
 
+  async function onCreateLink() {
+    setError(null);
+    setCreatingLink(true);
+
+    try {
+      const out = await shareDocument(documentId, {
+        targetType: "link",
+        role: newLinkRole,
+      });
+
+      const token = out.linkToken?.trim();
+      if (token) {
+        setFreshLink(buildShareUrl(documentId, token));
+      }
+
+      await reload();
+    } catch (e: any) {
+      setError(e?.message ?? "Failed to create link");
+    } finally {
+      setCreatingLink(false);
+    }
+  }
+
+  async function copyLink(token: string) {
+    const trimmed = token.trim();
+    if (!trimmed) return;
+
+    const fullUrl = buildShareUrl(documentId, trimmed);
+    setCopyingToken(trimmed);
+
+    try {
+      await navigator.clipboard.writeText(fullUrl);
+      setFreshLink(fullUrl);
+    } catch (e: any) {
+      setError(e?.message ?? "Failed to copy link");
+    } finally {
+      setCopyingToken(null);
+    }
+  }
+
   const entriesCount = items.length + invites.length;
 
   return (
@@ -284,6 +336,60 @@ export function ManageAccessModal({ open, documentId, onClose, meId }: Props) {
               {loading ? "Loading..." : `${entriesCount} entries`}
             </div>
 
+            <div className="mb-3 rounded-xl border border-blue-100 bg-blue-50 p-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-slate-900">Share by link</div>
+                  <div className="mt-1 text-xs text-slate-600">
+                    Generate a direct document link with a specific access role.
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <select
+                    value={newLinkRole}
+                    onChange={(e) =>
+                      setNewLinkRole(e.target.value as Exclude<DocumentRole, "Owner">)
+                    }
+                    className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none"
+                    disabled={creatingLink}
+                    aria-label="Link access role"
+                  >
+                    {ROLE_OPTIONS.map((r) => (
+                      <option key={r.value} value={r.value}>
+                        {r.label}
+                      </option>
+                    ))}
+                  </select>
+
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    loading={creatingLink}
+                    onClick={() => void onCreateLink()}
+                  >
+                    Create link
+                  </Button>
+                </div>
+              </div>
+
+              {freshLink && (
+                <div className="mt-3 rounded-xl border border-blue-200 bg-white p-3">
+                  <div className="text-xs font-medium text-slate-700">Latest generated link</div>
+                  <div className="mt-1 break-all text-xs text-slate-600">{freshLink}</div>
+                  <div className="mt-3">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => void navigator.clipboard.writeText(freshLink)}
+                    >
+                      Copy latest link
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Permissions */}
             <div className="mb-3 overflow-hidden rounded-xl border border-gray-200">
               <div className="border-b border-gray-200 bg-gray-50 px-3 py-2 text-xs font-semibold text-gray-700">
@@ -312,6 +418,17 @@ export function ManageAccessModal({ open, documentId, onClose, meId }: Props) {
                         </div>
 
                         <div className="flex items-center gap-2">
+                          {p.principalType === "link" && (
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => void copyLink(p.principalId)}
+                              disabled={copyingToken === p.principalId || isSaving || isRemoving}
+                            >
+                              {copyingToken === p.principalId ? "Copying..." : "Copy link"}
+                            </Button>
+                          )}
+
                           {isOwner ? (
                             <div className="rounded-lg border border-gray-200 bg-gray-50 px-2 py-1 text-xs font-medium text-gray-700">
                               Owner

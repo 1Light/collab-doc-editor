@@ -3,6 +3,7 @@
 import type { Request, Response, NextFunction } from "express";
 import { ERROR_CODES } from "@repo/contracts";
 
+import { getDocumentLinkToken } from "../../lib/documentLinkAccess";
 import { permissionService } from "../permissions/permissionService";
 import { versionService } from "./versionService";
 import { documentService } from "../documents/documentService";
@@ -43,6 +44,7 @@ export const versionController = {
       const role = await permissionService.resolveEffectiveRole({
         documentId,
         userId: authUser.id,
+        linkToken: getDocumentLinkToken(req),
       });
 
       if (!role) {
@@ -94,6 +96,7 @@ export const versionController = {
       const role = await permissionService.resolveEffectiveRole({
         documentId,
         userId: authUser.id,
+        linkToken: getDocumentLinkToken(req),
       });
 
       if (!role) {
@@ -138,6 +141,7 @@ export const versionController = {
       const role = await permissionService.resolveEffectiveRole({
         documentId,
         userId: authUser.id,
+        linkToken: getDocumentLinkToken(req),
       });
 
       if (!role) {

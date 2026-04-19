@@ -2,6 +2,7 @@
 
 import type { Request, Response, NextFunction } from "express";
 import { ERROR_CODES } from "@repo/contracts";
+import { getDocumentLinkToken } from "../../lib/documentLinkAccess";
 import { aiJobService } from "./aiJobService";
 import { permissionService } from "../permissions/permissionService";
 import { config } from "../../config/env";
@@ -153,6 +154,7 @@ export const aiJobController = {
       const role = await permissionService.resolveEffectiveRole({
         documentId,
         userId: user.id,
+        linkToken: getDocumentLinkToken(req),
       });
 
       if (!role) {
@@ -162,6 +164,7 @@ export const aiJobController = {
       const job = await aiJobService.createJob({
         documentId,
         requesterId: user.id,
+        linkToken: getDocumentLinkToken(req),
         operation,
         selection: normalizedSelection,
         parameters: normalizedParameters,
@@ -220,6 +223,7 @@ export const aiJobController = {
         operation,
         selection: normalizedSelection,
         parameters: normalizedParameters,
+        linkToken: getDocumentLinkToken(req),
         signal: abortController.signal,
         onChunk: async (chunk) => {
           res.write(`event: chunk\n`);
@@ -277,6 +281,7 @@ export const aiJobController = {
       const role = await permissionService.resolveEffectiveRole({
         documentId: job.documentId,
         userId: user.id,
+        linkToken: getDocumentLinkToken(req),
       });
 
       if (!role) {
@@ -307,7 +312,11 @@ export const aiJobController = {
         throw apiError(ERROR_CODES.INVALID_REQUEST, "documentId is required");
       }
 
-      const history = await aiJobService.listHistory(documentId, user.id);
+      const history = await aiJobService.listHistory(
+        documentId,
+        user.id,
+        getDocumentLinkToken(req)
+      );
       return res.json(history);
     } catch (err) {
       return next(err);
@@ -325,7 +334,7 @@ export const aiJobController = {
         throw apiError(ERROR_CODES.INVALID_REQUEST, "jobId is required");
       }
 
-      const out = await aiJobService.rejectJob(jobId, user.id);
+      const out = await aiJobService.rejectJob(jobId, user.id, getDocumentLinkToken(req));
       return res.json(out);
     } catch (err) {
       return next(err);
@@ -355,6 +364,7 @@ export const aiJobController = {
         jobId,
         requesterId: user.id,
         finalText,
+        linkToken: getDocumentLinkToken(req),
       });
 
       return res.json(result);

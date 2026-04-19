@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AISuggestionPanel } from "../../src/features/ai/AISuggestionPanel";
 
@@ -93,5 +93,40 @@ describe("AISuggestionPanel", () => {
     );
 
     expect(screen.queryByText(/recent ai history/i)).not.toBeInTheDocument();
+  });
+
+  it("can keep only the selected part of a generated suggestion before accepting", async () => {
+    const user = userEvent.setup();
+
+    mockStreamAIJob.mockResolvedValue({
+      jobId: "job-2",
+      result: "Alpha Beta Gamma",
+      prompt: "prompt",
+      model: "mock",
+    });
+
+    render(
+      <AISuggestionPanel
+        documentId="doc-1"
+        selection={{
+          start: 0,
+          end: 5,
+          text: "hello",
+          pmFrom: 1,
+          pmTo: 6,
+        }}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: /generate/i }));
+
+    const textarea = (await screen.findByDisplayValue("Alpha Beta Gamma")) as HTMLTextAreaElement;
+    textarea.focus();
+    textarea.setSelectionRange(6, 10);
+    fireEvent.select(textarea);
+
+    await user.click(screen.getByRole("button", { name: /use selected part/i }));
+
+    expect(screen.getByDisplayValue("Beta")).toBeInTheDocument();
   });
 });

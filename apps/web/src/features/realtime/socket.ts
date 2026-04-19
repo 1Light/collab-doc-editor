@@ -1,6 +1,7 @@
 // apps/web/src/features/realtime/socket.ts
 
 import { io, Socket } from "socket.io-client";
+import { getDocumentLinkToken } from "../../lib/documentAccess";
 
 const REALTIME_URL =
   import.meta.env.VITE_REALTIME_BASE_URL ?? "http://localhost:4001";
@@ -16,6 +17,10 @@ function getOrgId(): string | null {
   if (!raw) return null;
   const trimmed = raw.trim();
   return trimmed.length > 0 ? trimmed : null;
+}
+
+function getDocumentAccessToken(): string | null {
+  return getDocumentLinkToken();
 }
 
 type Unsub = () => void;
@@ -67,6 +72,7 @@ export function getSocket(): Socket {
       cb({
         token: getToken(),
         orgId: getOrgId(),
+        documentAccessToken: getDocumentAccessToken(),
       }),
   });
 

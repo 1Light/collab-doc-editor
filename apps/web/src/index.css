@@ -168,6 +168,28 @@ body {
   border-radius: 6px;
 }
 
+.ProseMirror pre {
+  margin: 1.15rem 0;
+  overflow-x: auto;
+  border: 1px solid #dbe4f0;
+  border-radius: 16px;
+  background: #0f172a;
+  padding: 1rem 1.1rem;
+  color: #e2e8f0;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.ProseMirror pre code {
+  display: block;
+  font-family:
+    "SFMono-Regular", "SF Mono", ui-monospace, Menlo, Monaco, Consolas, "Liberation Mono",
+    "Courier New", monospace;
+  font-size: 0.92rem;
+  line-height: 1.7;
+  white-space: pre;
+  color: inherit;
+}
+
 /* ---------------------------
    Links
 ---------------------------- */

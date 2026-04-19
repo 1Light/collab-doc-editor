@@ -3,6 +3,7 @@
 import type { Request, Response, NextFunction, RequestHandler } from "express";
 import { ERROR_CODES } from "@repo/contracts";
 import type { DocumentRole } from "@repo/contracts";
+import { getDocumentLinkToken } from "../lib/documentLinkAccess";
 import { permissionService } from "../modules/permissions/permissionService";
 import { documentRepo } from "../modules/documents/documentRepo";
 
@@ -51,6 +52,7 @@ export function requireDocumentRole(allowedRoles: DocumentRole[]): RequestHandle
       const effectiveRole = await permissionService.resolveEffectiveRole({
         documentId,
         userId: req.authUser.id,
+        linkToken: getDocumentLinkToken(req),
       });
 
       if (!permissionService.hasRequiredRole(effectiveRole, allowedRoles)) {
