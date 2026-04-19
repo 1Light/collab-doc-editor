@@ -17,7 +17,6 @@ import { disconnectSocket } from "./features/realtime/socket";
 
 import { Login } from "./features/auth/pages/Login";
 import { OrganizationsPage } from "./features/auth/pages/Organizations";
-import { SignupMember } from "./features/auth/pages/SignupMember";
 import { SignupOwner } from "./features/auth/pages/SignupOwner";
 import { SignupInvite } from "./features/auth/pages/SignupInvite";
 import { Documents } from "./features/documents/pages/Documents";
@@ -417,14 +416,14 @@ export default function App() {
           element={
             <Login
               onLoggedIn={loadCurrentUserAndRouteAfterLogin}
-              onGoToSignup={() => navigate("/signup")}
+              onGoToSignup={() => navigate("/signup/owner")}
               onGoToSignupInvite={() => {
                 if (loginInviteToken) {
                   rememberPendingInvite({ name: "signupInvite", token: loginInviteToken });
                   navigate(`/signup/invite/${loginInviteToken}`);
                   return;
                 }
-                navigate("/signup");
+                navigate("/signup/owner");
               }}
               inviteMode={loginInviteMode}
               inviteToken={loginInviteToken}
@@ -434,12 +433,7 @@ export default function App() {
 
         <Route
           path="/signup"
-          element={
-            <SignupMember
-              onSignedUp={loadCurrentUserAndRouteAfterLogin}
-              onGoToLogin={() => navigate("/login")}
-            />
-          }
+          element={<Navigate to="/signup/owner" replace />}
         />
 
         <Route
