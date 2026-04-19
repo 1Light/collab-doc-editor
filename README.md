@@ -39,17 +39,7 @@ Run from the repository root:
 
 ```bash
 pnpm install
-````
-
-### Build Shared Contracts (IMPORTANT)
-
-The `contracts` package must be built before running the system or tests:
-
-```bash
-pnpm --filter @repo/contracts build
 ```
-
-> This generates the compiled output used by other services (API, AI service, etc.).
 
 ---
 
@@ -151,64 +141,6 @@ WEB_PORT=5173
 
 ---
 
-## Database Setup (IMPORTANT)
-
-### 0. Install & Start Docker
-
-* Install Docker Desktop: [https://www.docker.com/products/docker-desktop](https://www.docker.com/products/docker-desktop)
-* Open Docker Desktop and make sure it is running
-
----
-
-### 1. Start PostgreSQL with Docker
-
-From the repository root, run:
-
-```bash
-docker compose -f infra/docker/docker-compose.yml up -d
-```
-
----
-
-###
-
-```bash
-docker ps
-```
-
-You should see a container named:
-
-```
-collab_postgres
-```
-
----
-
-### 2. Create shadow database (required)
-
-```bash
-docker exec -it collab_postgres psql -U collab -d postgres -c "CREATE DATABASE collabdb_shadow;"
-```
-
----
-
-### 3. Run Prisma setup
-
-```bash
-cd apps/api
-
-# Generate Prisma client
-pnpm prisma generate
-
-# Apply migrations (creates all tables)
-pnpm prisma migrate dev
-
-# Seed database (optional)
-pnpm prisma:seed
-```
-
----
-
 ## Running the System
 
 From repo root:
@@ -227,16 +159,26 @@ chmod +x run.sh
 What `run.sh` does:
 
 - builds the shared `packages/contracts` package first
+- starts PostgreSQL with Docker
+- generates the Prisma client
+- applies committed database migrations automatically
 - starts all app services from the repository root
 - gives you a single-command local startup flow for the project
 
 How to use it:
 
 1. Make sure the `.env` files are created for each app.
-2. Make sure Docker/PostgreSQL is already running and Prisma setup has been completed.
+2. Make sure Docker Desktop is installed and running.
 3. Run `./run.sh` from the repository root.
 4. Leave that terminal open while the app is running.
 5. Open the web app at `http://localhost:5173`.
+
+Notes:
+
+- `run.sh` is the recommended reviewer flow.
+- It uses `prisma migrate deploy`, so normal local startup does not require a manual shadow-database setup.
+- Database seeding is optional and is not required to run the application.
+- If any required `.env` file is missing, `run.sh` will stop and tell you which one to create.
 
 If you prefer to start the monorepo directly without the wrapper script, you can also use:
 
@@ -300,7 +242,7 @@ Main message categories:
 2. The frontend sends a streamed AI job request with only the selected text plus operation-specific parameters.
 3. The API checks document permissions and AI policy, then creates a persisted AI job.
 4. The API forwards the request to the AI service and streams chunks back to the browser over SSE.
-5. The user can cancel, edit the generated text, keep only a selected portion, accept, reject, or undo an accepted apply.
+5. The user can cancel, edit the generated text, accept, reject, or undo an accepted apply.
 6. Accepted suggestions create a new document version and are recorded in AI history.
 
 Implemented AI operations include:
