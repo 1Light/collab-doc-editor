@@ -3,11 +3,11 @@ import type { Editor as TiptapEditor } from "@tiptap/react";
 
 import { getDocument, updateDocument } from "../../documents/api";
 import type { Comment } from "../../comments/api";
+import { persistDocumentLinkToken } from "../../../lib/documentAccess";
 
 import { PresenceLayer } from "../../presence/PresenceLayer";
 import { Button } from "../../../components/ui/Button";
 import { Card } from "../../../components/ui/Card";
-import { Badge } from "../../../components/ui/Badge";
 
 import { EditorToolbar } from "../EditorToolbar";
 import { EditorBubbleMenu } from "../EditorBubbleMenu";
@@ -46,6 +46,13 @@ type PendingCommentAnchor = {
   text: string;
   pmFrom?: number;
   pmTo?: number;
+};
+
+type SaveState = "saved" | "pending" | "saving" | "error";
+
+type UndoableAIChange = {
+  previousHtml: string;
+  label: string;
 };
 
 function escapeHtml(text: string) {
@@ -166,6 +173,8 @@ export function EditorPage({ documentId, onBack, onCurrentUserColorChange }: Pro
   const [loading, setLoading] = useState(true);
   const [banner, setBanner] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(true);
+  const [saveState, setSaveState] = useState<SaveState>("saved");
+  const [undoableAIChange, setUndoableAIChange] = useState<UndoableAIChange | null>(null);
 
   const isConnectedRef = useLatestRef(isConnected);
   const loadingRef = useLatestRef(loading);
@@ -226,6 +235,10 @@ export function EditorPage({ documentId, onBack, onCurrentUserColorChange }: Pro
   const seedT2Ref = useRef<number | null>(null);
   const ySaveTimerRef = useRef<number | null>(null);
 
+  useEffect(() => {
+    persistDocumentLinkToken();
+  }, [documentId]);
+
   function clearSeedTimers() {
     if (seedT1Ref.current) window.clearTimeout(seedT1Ref.current);
     if (seedT2Ref.current) window.clearTimeout(seedT2Ref.current);
@@ -245,7 +258,7 @@ export function EditorPage({ documentId, onBack, onCurrentUserColorChange }: Pro
     [editorRef]
   );
 
-  async function persistDocumentContent(nextHtml: string) {
+  const persistDocumentContent = useCallback(async (nextHtml: string) => {
     const trimmedNext = nextHtml ?? "";
     const trimmedLast = lastSavedContentRef.current ?? "";
 
@@ -259,12 +272,14 @@ export function EditorPage({ documentId, onBack, onCurrentUserColorChange }: Pro
     }
 
     saveInFlightRef.current = true;
+    setSaveState("saving");
 
     try {
       await updateDocument(documentId, trimmedNext);
       lastSavedContentRef.current = trimmedNext;
       pendingSaveHtmlRef.current = null;
       setBanner(null);
+      setSaveState("saved");
     } catch (e: any) {
       if (e?.status === 403) {
         setBanner("You do not have permission to edit this document.");
@@ -274,6 +289,7 @@ export function EditorPage({ documentId, onBack, onCurrentUserColorChange }: Pro
         setBanner(e?.message ?? "Failed to save document");
       }
       pendingSaveHtmlRef.current = trimmedNext;
+      setSaveState("error");
     } finally {
       saveInFlightRef.current = false;
 
@@ -283,7 +299,7 @@ export function EditorPage({ documentId, onBack, onCurrentUserColorChange }: Pro
         void persistDocumentContent(queued);
       }
     }
-  }
+  }, [documentId, setBanner]);
 
   function applyLiveAIResult(params: {
     finalText: string;
@@ -300,6 +316,7 @@ export function EditorPage({ documentId, onBack, onCurrentUserColorChange }: Pro
     const editor = editorRef.current;
     if (!editor) return;
 
+    const previousHtml = editor.getHTML();
     const from = params.targetSelection.pmFrom;
     const to = params.targetSelection.pmTo;
     const html = textToHtml(params.finalText);
@@ -318,6 +335,10 @@ export function EditorPage({ documentId, onBack, onCurrentUserColorChange }: Pro
       const nextHtml = editor.getHTML();
       initialHtmlRef.current = nextHtml;
       lastSavedContentRef.current = nextHtml;
+      setUndoableAIChange({
+        previousHtml,
+        label: params.operation === "summarize" ? "AI summary applied" : "AI suggestion applied",
+      });
       void persistDocumentContent(nextHtml);
     } finally {
       window.setTimeout(() => {
@@ -352,6 +373,15 @@ export function EditorPage({ documentId, onBack, onCurrentUserColorChange }: Pro
         suppressAutosaveRef.current = false;
       }, 0);
     }
+  }
+
+  async function undoLastAIApply() {
+    if (!undoableAIChange) return;
+
+    applyServerContentWithoutAutosave(undoableAIChange.previousHtml);
+    setUndoableAIChange(null);
+    setBanner(null);
+    await persistDocumentContent(undoableAIChange.previousHtml);
   }
 
   const {
@@ -390,6 +420,7 @@ export function EditorPage({ documentId, onBack, onCurrentUserColorChange }: Pro
     (async () => {
       setLoading(true);
       setBanner(null);
+      setSaveState("saved");
 
       initialHtmlRef.current = "";
       lastSavedContentRef.current = "";
@@ -417,6 +448,7 @@ export function EditorPage({ documentId, onBack, onCurrentUserColorChange }: Pro
         const content = (doc as any)?.content || "";
         initialHtmlRef.current = content;
         lastSavedContentRef.current = content;
+        setSaveState("saved");
 
         await refreshCommentSummary({ maybeAutoOpen: true });
       } catch (e: any) {
@@ -493,6 +525,10 @@ export function EditorPage({ documentId, onBack, onCurrentUserColorChange }: Pro
       if (!isConnected) return;
       if (!initialSyncDoneRef.current) return;
 
+      if (undoableAIChange) {
+        setUndoableAIChange(null);
+      }
+
       clearYSaveTimer();
       ySaveTimerRef.current = window.setTimeout(() => {
         const editorNow = editorRef.current;
@@ -502,6 +538,7 @@ export function EditorPage({ documentId, onBack, onCurrentUserColorChange }: Pro
         initialHtmlRef.current = nextHtml;
 
         if (nextHtml !== lastSavedContentRef.current) {
+          setSaveState("pending");
           void persistDocumentContent(nextHtml);
         }
       }, 900);
@@ -524,6 +561,8 @@ export function EditorPage({ documentId, onBack, onCurrentUserColorChange }: Pro
     docRoleRef,
     editorRef,
     documentId,
+    persistDocumentContent,
+    undoableAIChange,
   ]);
 
   useEffect(() => {
@@ -571,20 +610,53 @@ export function EditorPage({ documentId, onBack, onCurrentUserColorChange }: Pro
 
   const connectionBadge = (
    <span
-    className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${
+    className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ${
       isConnected
         ? "bg-green-100 text-green-700"
         : "bg-amber-100 text-amber-700"
     }`}
   >
     <span
-      className={`h-2 w-2 rounded-full ${
+      className={`h-1.5 w-1.5 rounded-full ${
         isConnected ? "bg-green-500" : "bg-amber-500"
       }`}
     />
     {isConnected ? "Connected" : "Reconnecting"}
    </span>
 );
+
+  const saveBadge = (
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+        saveState === "saved"
+          ? "bg-slate-100 text-slate-700"
+          : saveState === "saving"
+            ? "bg-blue-100 text-blue-700"
+            : saveState === "pending"
+              ? "bg-amber-100 text-amber-700"
+              : "bg-red-100 text-red-700"
+      }`}
+    >
+      <span
+        className={`h-1.5 w-1.5 rounded-full ${
+          saveState === "saved"
+            ? "bg-slate-500"
+            : saveState === "saving"
+              ? "bg-blue-500"
+              : saveState === "pending"
+                ? "bg-amber-500"
+                : "bg-red-500"
+        }`}
+      />
+      {saveState === "saved"
+        ? "Saved"
+        : saveState === "saving"
+          ? "Saving"
+          : saveState === "pending"
+            ? "Draft changes"
+            : "Save failed"}
+    </span>
+  );
 
   const showSidePanel = sidePanel !== "none";
   const bubbleDisabled = loading;
@@ -610,36 +682,33 @@ export function EditorPage({ documentId, onBack, onCurrentUserColorChange }: Pro
     );
   }, [collabExtensions, loading, isConnected, docRole]);
 
-   return (
+  return (
     <div className="min-h-screen bg-slate-100">
       <div className="sticky top-0 z-20 border-b border-slate-200 bg-white/90 shadow-sm backdrop-blur">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
-          <div className="flex min-w-0 items-center gap-3">
-            <Button variant="secondary" size="sm" onClick={onBack}>
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
+          <div className="flex min-w-0 items-center gap-4">
+            <Button variant="secondary" size="sm" onClick={onBack} className="rounded-2xl px-4 py-2">
               Back
             </Button>
 
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <h1 className="truncate text-base font-semibold text-slate-900 sm:text-lg">
+            <div className="min-w-0 space-y-1.5">
+              <div className="min-w-0 flex items-center gap-3">
+                <h1 className="truncate text-lg font-semibold tracking-tight text-slate-900 sm:text-xl">
                   {docTitle}
                 </h1>
-                <span className="hidden sm:inline-flex">{connectionBadge}</span>
               </div>
-              <div className="mt-1 flex items-center gap-2 text-xs text-slate-500 sm:text-sm">
-                 <span>Signed in as {me.name}</span>
 
-                 {docRole && (
-                   <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
-                    {docRole}
-                   </span>
-                 )}
+              <div className="flex flex-wrap items-center gap-1.5">
+                {connectionBadge}
+                {saveBadge}
               </div>
             </div>
           </div>
 
           <div className="shrink-0">
-            <PresenceLayer users={presenceUsers} />
+            <div className="flex items-center gap-2">
+              <PresenceLayer users={presenceUsers} />
+            </div>
           </div>
         </div>
 
@@ -659,7 +728,24 @@ export function EditorPage({ documentId, onBack, onCurrentUserColorChange }: Pro
               aria-pressed={sidePanel === "versions"}
               title="Open version history"
             >
-              History
+              Version History
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setSidePanel((cur) => (cur === "ai-history" ? "none" : "ai-history"));
+                setPendingCommentAnchor(null);
+              }}
+              className={`rounded-xl px-3 py-2 text-xs font-semibold transition-colors ${
+                sidePanel === "ai-history"
+                  ? "bg-slate-900 text-white shadow-sm"
+                  : "text-slate-700 hover:bg-white hover:text-slate-900"
+              }`}
+              aria-pressed={sidePanel === "ai-history"}
+              title="Open AI interaction history"
+            >
+              AI Interaction History
             </button>
 
             {totalCommentsCount > 0 && (
@@ -693,6 +779,15 @@ export function EditorPage({ documentId, onBack, onCurrentUserColorChange }: Pro
         {banner && (
           <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 shadow-sm">
             {banner}
+          </div>
+        )}
+
+        {undoableAIChange && (
+          <div className="mb-4 flex flex-col gap-3 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+            <div>{undoableAIChange.label}. You can undo this accepted AI change.</div>
+            <Button variant="secondary" size="sm" onClick={() => void undoLastAIApply()}>
+              Undo AI apply
+            </Button>
           </div>
         )}
 

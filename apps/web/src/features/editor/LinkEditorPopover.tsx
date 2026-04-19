@@ -1,4 +1,4 @@
-// apps/web/src/editor/LinkEditorPopover.tsx
+// apps/web/src/features/editor/LinkEditorPopover.tsx
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Editor } from "@tiptap/react";
@@ -30,9 +30,9 @@ export function LinkEditorPopover({ editor, open, onOpenChange, anchorRef }: Pro
     } catch {
       return "";
     }
-  }, [editor, open]);
+  }, [editor]);
 
-  const [value, setValue] = useState("");
+  const [value, setValue] = useState(currentHref);
 
   // Centralized close: ensures consistent focus return
   const close = (opts?: { focusAnchor?: boolean }) => {
@@ -60,7 +60,7 @@ export function LinkEditorPopover({ editor, open, onOpenChange, anchorRef }: Pro
     } catch {
       return false;
     }
-  }, [editor, open]);
+  }, [editor]);
 
   const canSubmit = value.trim().length > 0 && hasSelection;
 

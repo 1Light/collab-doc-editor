@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Editor as TiptapEditor } from "@tiptap/react";
 
 import { getMyRole } from "../documents/api";
@@ -10,7 +10,10 @@ import {
   type PresenceRosterPayload,
 } from "../realtime/presenceClient";
 import { createCursorClient, type CursorBatchPayload } from "../realtime/cursorClient";
-import { getCollaborationColor } from "../presence/colorPalette";
+import {
+  assignCollaborationColors,
+  getCollaborationColor,
+} from "../presence/colorPalette";
 
 import { EditorStateManager } from "./EditorStateManager";
 import {
@@ -62,7 +65,25 @@ export function useCollabEditorSession({
   const roleRefreshInFlightRef = useRef(false);
   const roleRefreshQueuedRef = useRef(false);
 
-  const refreshRoleNow = async (docId: string) => {
+  const applyDistinctPresenceColors = useCallback(
+    (users: PresenceUser[]) => {
+      const activeUsers = (Array.isArray(users) ? users : []).filter(
+        (u) => u.userId && (u.status ?? "active") !== "offline"
+      );
+      const colorMap = assignCollaborationColors(activeUsers);
+
+      return users.map((u) => ({
+        ...u,
+        color:
+          colorMap.get(u.userId) ??
+          u.color?.trim() ??
+          getCollaborationColor(u.userId, u.name),
+      }));
+    },
+    []
+  );
+
+  const refreshRoleNow = useCallback(async (docId: string) => {
     if (roleRefreshInFlightRef.current) {
       roleRefreshQueuedRef.current = true;
       return;
@@ -90,7 +111,7 @@ export function useCollabEditorSession({
         void refreshRoleNow(docId);
       }
     }
-  };
+  }, [editorRef, isConnectedRef, loadingRef, setDocRole]);
 
   useEffect(() => {
     setPresenceUsers([]);
@@ -112,9 +133,9 @@ export function useCollabEditorSession({
       initialSyncDoneRef.current = true;
     };
 
-    const onRoleUpdated = async (payload: { documentId: string; userId: string }) => {
+    const onRoleUpdated = async (payload: { documentId: string; userId?: string | null }) => {
       if (payload?.documentId !== documentId) return;
-      if (payload?.userId !== me.id) return;
+      if (payload?.userId && payload.userId !== me.id) return;
       await refreshRoleNow(payload.documentId);
     };
 
@@ -155,18 +176,18 @@ export function useCollabEditorSession({
 
         const roster = Array.isArray(payload.users) ? payload.users : [];
         const liveRoster = roster.filter((u) => u.userId && u.userId !== "");
-
-        const myStableColor = getCollaborationColor(me.id, me.name);
-        managerRef.current?.setUserColor(myStableColor);
-
-        setPresenceUsers(
+        const nextUsers = applyDistinctPresenceColors(
           liveRoster.map((u) => ({
             userId: u.userId,
             name: u.name ?? undefined,
-            color: getCollaborationColor(u.userId, u.name ?? undefined),
-            status: "active",
+            status: "active" as const,
           }))
         );
+        const myStableColor =
+          nextUsers.find((u) => u.userId === me.id)?.color?.trim() ||
+          getCollaborationColor(me.id, me.name);
+        managerRef.current?.setUserColor(myStableColor);
+        setPresenceUsers(nextUsers);
       },
 
       onBatch: (payload: PresenceBatchPayload) => {
@@ -182,7 +203,6 @@ export function useCollabEditorSession({
 
             const next: PresenceUser = {
               ...existing,
-              color: getCollaborationColor(upd.userId, existing.name),
               status: upd.state.status ?? existing.status ?? "active",
             };
 
@@ -190,7 +210,12 @@ export function useCollabEditorSession({
             else map.set(upd.userId, next);
           }
 
-          return Array.from(map.values());
+          const nextUsers = applyDistinctPresenceColors(Array.from(map.values()));
+          const myStableColor =
+            nextUsers.find((u) => u.userId === me.id)?.color?.trim() ||
+            getCollaborationColor(me.id, me.name);
+          managerRef.current?.setUserColor(myStableColor);
+          return nextUsers;
         });
       },
     });
@@ -245,6 +270,8 @@ export function useCollabEditorSession({
     documentId,
     me.id,
     me.name,
+    applyDistinctPresenceColors,
+    refreshRoleNow,
     selectionRef,
     setBanner,
     setDocRole,

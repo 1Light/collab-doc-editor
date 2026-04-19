@@ -17,7 +17,7 @@ type Props = {
   meId?: string;
 };
 
-type BlockType = "p" | "h1" | "h2" | "h3" | "bullets" | "numbers";
+type BlockType = "p" | "h1" | "h2" | "h3" | "bullets" | "numbers" | "code";
 
 function getBlockType(editor: TiptapEditor | null): BlockType {
   if (!editor) return "p";
@@ -25,6 +25,7 @@ function getBlockType(editor: TiptapEditor | null): BlockType {
     if (editor.isActive("heading", { level: 1 })) return "h1";
     if (editor.isActive("heading", { level: 2 })) return "h2";
     if (editor.isActive("heading", { level: 3 })) return "h3";
+    if (editor.isActive("codeBlock")) return "code";
     if (editor.isActive("bulletList")) return "bullets";
     if (editor.isActive("orderedList")) return "numbers";
     return "p";
@@ -38,6 +39,7 @@ const BLOCK_ITEMS: DropdownMenuItem[] = [
   { id: "h1", label: "Heading 1", description: "Large section heading" },
   { id: "h2", label: "Heading 2", description: "Medium section heading" },
   { id: "h3", label: "Heading 3", description: "Small section heading" },
+  { id: "code", label: "Code block", description: "Monospaced multi-line code block" },
   { id: "bullets", label: "Bulleted list", description: "List with bullets" },
   { id: "numbers", label: "Numbered list", description: "List with numbers" },
 ];
@@ -115,6 +117,10 @@ function applyBlockType(editor: TiptapEditor, value: BlockType) {
 
     case "numbers":
       chain.toggleOrderedList().run();
+      return;
+
+    case "code":
+      chain.toggleCodeBlock().run();
       return;
 
     default:

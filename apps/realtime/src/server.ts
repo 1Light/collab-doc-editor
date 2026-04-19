@@ -71,9 +71,6 @@ function requireInternalSecret(
  * Body: { documentId: string, userId: string, role: string }
  */
 app.post("/internal/events/document-role-updated", requireInternalSecret, (req, res) => {
-  // eslint-disable-next-line no-console
-  console.log("🔥 INTERNAL ROLE UPDATE HIT:", req.body);
-
   const { documentId, userId, role } = (req.body ?? {}) as {
     documentId?: string;
     userId?: string;
@@ -90,8 +87,29 @@ app.post("/internal/events/document-role-updated", requireInternalSecret, (req, 
     role,
   });
 
-  // eslint-disable-next-line no-console
-  console.log("✅ EMITTED document:role_updated to room:", `user:${userId}`);
+  return res.json({ ok: true });
+});
+
+/**
+ * Internal API: notify document-wide access rule changes so open sessions
+ * can refresh effective role without a manual reload.
+ * POST /internal/events/document-access-rules-changed
+ * Body: { documentId: string }
+ */
+app.post("/internal/events/document-access-rules-changed", requireInternalSecret, (req, res) => {
+  const { documentId } = (req.body ?? {}) as {
+    documentId?: string;
+  };
+
+  if (!documentId) {
+    return res.status(400).json({ error: "documentId is required" });
+  }
+
+  io.to(documentId).emit("document:role_updated", {
+    documentId,
+    userId: null,
+    role: null,
+  });
 
   return res.json({ ok: true });
 });
@@ -110,9 +128,6 @@ app.post("/internal/events/document-role-updated", requireInternalSecret, (req, 
  * }
  */
 app.post("/internal/events/document-comment-changed", requireInternalSecret, (req, res) => {
-  // eslint-disable-next-line no-console
-  console.log("🔥 INTERNAL COMMENT EVENT HIT:", req.body);
-
   const { documentId, action, commentId, actorUserId, parentCommentId, status } = (req.body ??
     {}) as {
     documentId?: string;
@@ -141,8 +156,60 @@ app.post("/internal/events/document-comment-changed", requireInternalSecret, (re
 
   io.to(documentId).emit("document:comment_changed", payload);
 
-  // eslint-disable-next-line no-console
-  console.log("✅ EMITTED document:comment_changed to room:", documentId, payload);
+  return res.json({ ok: true });
+});
+
+/**
+ * Internal API: notify org-level admin data mutations so open admin pages
+ * can refresh members/invites without a manual reload.
+ * POST /internal/events/org-admin-data-changed
+ * Body:
+ * {
+ *   orgId: string,
+ *   reason:
+ *    | "member_joined"
+ *    | "member_removed"
+ *    | "member_role_updated"
+ *    | "invite_created"
+ *    | "invite_accepted"
+ *    | "invite_re_sent"
+ *    | "invite_revoked",
+ *   actorUserId?: string | null,
+ *   targetUserId?: string | null,
+ *   inviteId?: string | null,
+ *   emittedAt?: string
+ * }
+ */
+app.post("/internal/events/org-admin-data-changed", requireInternalSecret, (req, res) => {
+  const { orgId, reason, actorUserId, targetUserId, inviteId, emittedAt } = (req.body ??
+    {}) as {
+    orgId?: string;
+    reason?:
+      | "member_joined"
+      | "member_removed"
+      | "member_role_updated"
+      | "invite_created"
+      | "invite_accepted"
+      | "invite_re_sent"
+      | "invite_revoked";
+    actorUserId?: string | null;
+    targetUserId?: string | null;
+    inviteId?: string | null;
+    emittedAt?: string;
+  };
+
+  if (!orgId || !reason) {
+    return res.status(400).json({ error: "orgId and reason are required" });
+  }
+
+  io.to(`org:${orgId}`).emit("admin:orgDataChanged", {
+    orgId,
+    reason,
+    actorUserId: actorUserId ?? null,
+    targetUserId: targetUserId ?? null,
+    inviteId: inviteId ?? null,
+    emittedAt: emittedAt ?? new Date().toISOString(),
+  });
 
   return res.json({ ok: true });
 });
@@ -213,13 +280,8 @@ io.on("connection", (socket) => {
   const userId = socket.data?.userId as string | undefined;
   const orgId = socket.data?.orgId as string | null | undefined;
 
-  // eslint-disable-next-line no-console
-  console.log("[realtime] connected:", socket.id, "userId:", userId);
-
   if (userId) {
     socket.join(`user:${userId}`);
-    // eslint-disable-next-line no-console
-    console.log("👤 joined room:", `user:${userId}`);
   }
 
   if (orgId) {
@@ -232,8 +294,7 @@ io.on("connection", (socket) => {
   registerYjsAdapter(io, socket, yjsStore);
 
   socket.on("disconnect", (reason) => {
-    // eslint-disable-next-line no-console
-    console.log("[realtime] disconnected:", socket.id, "reason:", reason);
+    void reason;
   });
 });
 

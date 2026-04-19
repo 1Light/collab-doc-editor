@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Button } from "../ui/Button";
 import { Card } from "../ui/Card";
 import {
+  shareDocument,
   deletePermission,
   listPermissions,
   updatePermission,
@@ -28,9 +29,11 @@ const ROLE_OPTIONS: Array<{ value: Exclude<DocumentRole, "Owner">; label: string
   { value: "Editor", label: "Editor" },
 ];
 
+const DEFAULT_LINK_ROLE: Exclude<DocumentRole, "Owner"> = "Viewer";
+
 function displayName(p: Permission) {
   if (p.role === "Owner") return "Owner";
-  if (p.principalType === "link") return "Anyone with link";
+  if (p.principalType === "link") return "Anyone in org with link";
   const u = p.user;
   const name = u?.name?.trim();
   const email = u?.email?.trim();
@@ -90,11 +93,20 @@ function fmtDate(iso: string | null | undefined) {
   return d.toLocaleString();
 }
 
+function buildShareUrl(documentId: string, token: string) {
+  if (typeof window === "undefined") return `/documents/${documentId}?access=${token}`;
+  const url = new URL(`/documents/${documentId}`, window.location.origin);
+  url.searchParams.set("access", token);
+  return url.toString();
+}
+
 export function ManageAccessModal({ open, documentId, onClose, meId }: Props) {
   const [loading, setLoading] = useState(false);
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [revokingKey, setRevokingKey] = useState<string | null>(null);
   const [revokingInviteId, setRevokingInviteId] = useState<string | null>(null);
+  const [creatingLink, setCreatingLink] = useState(false);
+  const [copyingToken, setCopyingToken] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const [items, setItems] = useState<Permission[]>([]);
@@ -245,6 +257,40 @@ export function ManageAccessModal({ open, documentId, onClose, meId }: Props) {
     }
   }
 
+  async function onCreateLink() {
+    setError(null);
+    setCreatingLink(true);
+
+    try {
+      await shareDocument(documentId, {
+        targetType: "link",
+        role: DEFAULT_LINK_ROLE,
+      });
+
+      await reload();
+    } catch (e: any) {
+      setError(e?.message ?? "Failed to create link");
+    } finally {
+      setCreatingLink(false);
+    }
+  }
+
+  async function copyLink(token: string) {
+    const trimmed = token.trim();
+    if (!trimmed) return;
+
+    const fullUrl = buildShareUrl(documentId, trimmed);
+    setCopyingToken(trimmed);
+
+    try {
+      await navigator.clipboard.writeText(fullUrl);
+    } catch (e: any) {
+      setError(e?.message ?? "Failed to copy link");
+    } finally {
+      setCopyingToken(null);
+    }
+  }
+
   const entriesCount = items.length + invites.length;
 
   return (
@@ -273,7 +319,7 @@ export function ManageAccessModal({ open, documentId, onClose, meId }: Props) {
             </div>
           </div>
 
-          <div className="bg-white px-4 py-3">
+          <div className="max-h-[78vh] overflow-y-auto bg-white px-4 py-3">
             {error && (
               <div className="mb-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">
                 {error}
@@ -282,6 +328,29 @@ export function ManageAccessModal({ open, documentId, onClose, meId }: Props) {
 
             <div className="mb-2 text-xs font-medium text-gray-600">
               {loading ? "Loading..." : `${entriesCount} entries`}
+            </div>
+
+            <div className="mb-3 rounded-xl border border-blue-100 bg-blue-50 p-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-slate-900">Share by link</div>
+                  <div className="mt-1 text-xs text-slate-600">
+                    Generate an org-only document link. You can adjust its role later in
+                    permissions.
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    loading={creatingLink}
+                    onClick={() => void onCreateLink()}
+                  >
+                    Create link
+                  </Button>
+                </div>
+              </div>
             </div>
 
             {/* Permissions */}
@@ -295,7 +364,7 @@ export function ManageAccessModal({ open, documentId, onClose, meId }: Props) {
               ) : items.length === 0 ? (
                 <div className="p-3 text-sm text-gray-600">No permissions</div>
               ) : (
-                <ul className="divide-y divide-gray-200">
+                <ul className="max-h-[22rem] divide-y divide-gray-200 overflow-y-auto">
                   {items.map((p) => {
                     const key = `${p.principalType}:${p.principalId}`;
                     const isOwner = p.role === "Owner";
@@ -312,6 +381,17 @@ export function ManageAccessModal({ open, documentId, onClose, meId }: Props) {
                         </div>
 
                         <div className="flex items-center gap-2">
+                          {p.principalType === "link" && (
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => void copyLink(p.principalId)}
+                              disabled={copyingToken === p.principalId || isSaving || isRemoving}
+                            >
+                              {copyingToken === p.principalId ? "Copying..." : "Copy link"}
+                            </Button>
+                          )}
+
                           {isOwner ? (
                             <div className="rounded-lg border border-gray-200 bg-gray-50 px-2 py-1 text-xs font-medium text-gray-700">
                               Owner
@@ -364,7 +444,7 @@ export function ManageAccessModal({ open, documentId, onClose, meId }: Props) {
               ) : invites.length === 0 ? (
                 <div className="p-3 text-sm text-gray-600">No pending invites</div>
               ) : (
-                <ul className="divide-y divide-gray-200">
+                <ul className="max-h-[16rem] divide-y divide-gray-200 overflow-y-auto">
                   {invites.map((i) => {
                     const key = `invite:${i.id}`;
                     const isRevoking = revokingInviteId === i.id;
@@ -408,8 +488,8 @@ export function ManageAccessModal({ open, documentId, onClose, meId }: Props) {
             </div>
 
             <div className="mt-3 text-xs text-gray-500">
-              Tip: “Anyone with link” entries are link tokens; removing access removes that link’s
-              access.
+              Tip: “Anyone in org with link” entries are internal org link tokens; removing access
+              disables that link.
             </div>
           </div>
         </Card>

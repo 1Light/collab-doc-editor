@@ -24,7 +24,7 @@ export function createApp() {
     })
   );
 
-  // CORS (lock down in prod)
+  // Use an explicit origin when configured; otherwise allow local development defaults.
   if (config.WEB_ORIGIN) {
     app.use(
       cors({
@@ -33,7 +33,6 @@ export function createApp() {
       })
     );
   } else {
-    // dev default: allow all origins (adjust later)
     app.use(cors());
   }
 

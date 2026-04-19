@@ -7,6 +7,36 @@ export type MeUser = {
   orgRole: OrgRole;
 };
 
+type MeCandidate = {
+  id?: unknown;
+  name?: unknown;
+  email?: unknown;
+  orgRole?: unknown;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function toMeUser(value: unknown): MeUser | null {
+  if (!isRecord(value)) return null;
+
+  const candidate = value as MeCandidate;
+  if (typeof candidate.id !== "string" || typeof candidate.name !== "string") {
+    return null;
+  }
+
+  return {
+    id: candidate.id,
+    name: candidate.name,
+    email: typeof candidate.email === "string" ? candidate.email : undefined,
+    orgRole:
+      candidate.orgRole === "OrgAdmin" || candidate.orgRole === "OrgOwner"
+        ? candidate.orgRole
+        : null,
+  };
+}
+
 export function hasToken() {
   return !!localStorage.getItem("accessToken");
 }
@@ -16,25 +46,14 @@ export function readMeLocal(): MeUser | null {
   if (!raw) return null;
 
   try {
-    const u = JSON.parse(raw);
-    return {
-      id: u.id,
-      name: u.name,
-      email: u.email,
-      orgRole: u.orgRole ?? null,
-    };
+    return toMeUser(JSON.parse(raw));
   } catch {
     return null;
   }
 }
 
-export function normalizeMe(u: any): MeUser {
-  return {
-    id: u.id,
-    name: u.name,
-    email: u.email,
-    orgRole: u.orgRole ?? null,
-  };
+export function normalizeMe(u: unknown): MeUser {
+  return toMeUser(u) ?? { id: "", name: "", orgRole: null };
 }
 
 export function clearSession() {

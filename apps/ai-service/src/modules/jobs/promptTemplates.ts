@@ -138,6 +138,35 @@ ${text}
 `.trim();
       }
 
+      if (formatStyle === "structured_notes") {
+        return `
+You are an assistant helping improve a document.
+
+Task:
+Reformat the text into clean structured notes.
+
+STRICT REQUIREMENTS:
+- Output plain text only
+- Do NOT use Markdown
+- Do NOT use **bold**, headings with #, or code blocks
+- Use short labels and bullets where helpful
+- Preserve the original meaning
+- Do not add new facts
+
+CORRECT FORMAT EXAMPLE:
+Topic
+- Key point
+- Key point
+Details:
+- Item
+- Item
+
+--- BEGIN TEXT ---
+${text}
+--- END TEXT ---
+`.trim();
+      }
+
       return `
 You are an assistant helping improve a document.
 
