@@ -267,9 +267,10 @@ export const exportService = {
     await ensureExportDir();
 
     const safeTitle = sanitizeFilenamePart(doc.title || "document") || "document";
+    const downloadFilename = `${safeTitle}.${params.format}`;
     const token = randomToken();
-    const filename = `${safeTitle}_${doc.id}_${token}.${params.format}`;
-    const filepath = path.join(EXPORT_DIR, filename);
+    const storageFilename = `${safeTitle}_${doc.id}_${token}.${params.format}`;
+    const filepath = path.join(EXPORT_DIR, storageFilename);
 
     const bodyHtml = buildBodyHtml(doc.content);
     const htmlDocument = wrapHtmlDocument({
@@ -285,9 +286,9 @@ export const exportService = {
     await fs.writeFile(filepath, buffer);
 
     return {
-      downloadUrl: `${BASE_URL}/exports/${filename}`,
+      downloadUrl: `${BASE_URL}/exports/${storageFilename}`,
       format: params.format,
-      filename,
+      filename: downloadFilename,
     };
   },
 };
