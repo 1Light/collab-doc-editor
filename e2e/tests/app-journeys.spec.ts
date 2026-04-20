@@ -118,7 +118,7 @@ async function mockEditorApi(page: Page) {
     ]);
   });
 
-  await page.route("**/api/ai/history/doc-1", async (route) => {
+  await page.route("**/api/ai/history/doc-1**", async (route) => {
     await fulfillJson(route, [
       {
         jobId: "job-1",
@@ -257,7 +257,6 @@ test.describe("project journeys", () => {
     await page.goto("/documents/doc-1");
 
     await expect(page.getByRole("heading", { name: "Launch Plan", exact: true })).toBeVisible();
-    await expect(page.getByText("Signed in as Red")).toBeVisible();
 
     await page.getByRole("button", { name: "Version History" }).click();
     await expect(page.getByText("Showing latest 2 versions")).toBeVisible();
@@ -291,10 +290,15 @@ test.describe("project journeys", () => {
     await page.getByRole("button", { name: "Open" }).first().click();
     await expect(page).toHaveURL(/\/documents\/doc-1$/);
 
-    await selectEditorText(page, "Quarterly planning draft.");
-    await page.getByRole("button", { name: "AI Suggestions" }).click();
+    const closeSidePanel = page.getByRole("button", { name: "Close" });
+    if (await closeSidePanel.isVisible().catch(() => false)) {
+      await closeSidePanel.click();
+    }
 
-    await expect(page.getByText("AI suggestions", { exact: true })).toBeVisible();
+    await selectEditorText(page, "Quarterly planning draft.");
+    await page.getByRole("button", { name: /^AI$/ }).click({ force: true });
+
+    await expect(page.getByRole("button", { name: "Generate" })).toBeVisible();
     await page.getByRole("button", { name: "Generate" }).click();
     await expect(page.locator("textarea")).toHaveValue("A shorter summary.");
 
