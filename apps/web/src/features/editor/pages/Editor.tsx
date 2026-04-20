@@ -52,6 +52,7 @@ type SaveState = "saved" | "pending" | "saving" | "error";
 
 type UndoableAIChange = {
   previousHtml: string;
+  appliedHtml: string;
   label: string;
 };
 
@@ -337,6 +338,7 @@ export function EditorPage({ documentId, onBack, onCurrentUserColorChange }: Pro
       lastSavedContentRef.current = nextHtml;
       setUndoableAIChange({
         previousHtml,
+        appliedHtml: nextHtml,
         label: params.operation === "summarize" ? "AI summary applied" : "AI suggestion applied",
       });
       void persistDocumentContent(nextHtml);
@@ -525,10 +527,6 @@ export function EditorPage({ documentId, onBack, onCurrentUserColorChange }: Pro
       if (!isConnected) return;
       if (!initialSyncDoneRef.current) return;
 
-      if (undoableAIChange) {
-        setUndoableAIChange(null);
-      }
-
       clearYSaveTimer();
       ySaveTimerRef.current = window.setTimeout(() => {
         const editorNow = editorRef.current;
@@ -536,6 +534,10 @@ export function EditorPage({ documentId, onBack, onCurrentUserColorChange }: Pro
 
         const nextHtml = editorNow.getHTML();
         initialHtmlRef.current = nextHtml;
+
+        if (undoableAIChange && nextHtml !== undoableAIChange.appliedHtml) {
+          setUndoableAIChange(null);
+        }
 
         if (nextHtml !== lastSavedContentRef.current) {
           setSaveState("pending");
