@@ -185,7 +185,7 @@ describe("Document routes", () => {
     expect(mockResolveEffectiveRole).toHaveBeenCalledWith({
       documentId: "doc-1",
       userId: "user-1",
-      linkToken: null,
+      linkToken: undefined,
     });
     expect(mockGetDocument).toHaveBeenCalledWith("doc-1");
   });
@@ -257,7 +257,7 @@ describe("Document routes", () => {
     expect(mockResolveEffectiveRole).toHaveBeenCalledWith({
       documentId: "doc-1",
       userId: "user-1",
-      linkToken: null,
+      linkToken: undefined,
     });
 
     expect(mockExportDocument).toHaveBeenCalledWith({

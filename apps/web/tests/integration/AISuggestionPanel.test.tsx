@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AISuggestionPanel } from "../../src/features/ai/AISuggestionPanel";
 
@@ -95,14 +95,20 @@ describe("AISuggestionPanel", () => {
     expect(screen.queryByText(/recent ai history/i)).not.toBeInTheDocument();
   });
 
-  it("can keep only the selected part of a generated suggestion before accepting", async () => {
+  it("allows editing the generated suggestion before accepting", async () => {
     const user = userEvent.setup();
+    const onApplied = vi.fn();
 
     mockStreamAIJob.mockResolvedValue({
       jobId: "job-2",
       result: "Alpha Beta Gamma",
       prompt: "prompt",
       model: "mock",
+    });
+
+    mockApplyAIJob.mockResolvedValue({
+      versionHeadId: "v3",
+      updatedAt: "2026-04-17T10:05:00.000Z",
     });
 
     render(
@@ -115,18 +121,22 @@ describe("AISuggestionPanel", () => {
           pmFrom: 1,
           pmTo: 6,
         }}
+        onApplied={onApplied}
       />
     );
 
     await user.click(screen.getByRole("button", { name: /generate/i }));
 
     const textarea = (await screen.findByDisplayValue("Alpha Beta Gamma")) as HTMLTextAreaElement;
-    textarea.focus();
-    textarea.setSelectionRange(6, 10);
-    fireEvent.select(textarea);
+    await user.clear(textarea);
+    await user.type(textarea, "Beta");
 
-    await user.click(screen.getByRole("button", { name: /use selected part/i }));
+    await user.click(screen.getByRole("button", { name: /accept/i }));
 
-    expect(screen.getByDisplayValue("Beta")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(mockApplyAIJob).toHaveBeenCalledWith("job-2", "Beta");
+    });
+
+    expect(onApplied).toHaveBeenCalled();
   });
 });
