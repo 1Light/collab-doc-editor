@@ -94,7 +94,7 @@ describe("Comment routes", () => {
       anchor: { start: 0, end: 9 },
       quote: "Hello doc",
       parentCommentId: undefined,
-      linkToken: null,
+      linkToken: undefined,
     });
 
     expect(mockDocumentCommentChanged).toHaveBeenCalledWith({
@@ -201,7 +201,7 @@ describe("Comment routes", () => {
       documentId: "doc-1",
       commentId: "comment-1",
       requesterId: "user-1",
-      linkToken: null,
+      linkToken: undefined,
     });
   });
 
@@ -218,4 +218,3 @@ describe("Comment routes", () => {
     expect(mockListComments).not.toHaveBeenCalled();
   });
 });
-
